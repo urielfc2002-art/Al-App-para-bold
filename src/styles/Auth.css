@@ -1,0 +1,291 @@
+.login-container {
+  height: 100vh;
+  background: linear-gradient(to bottom, #0047AB, #ffffff);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 60px;
+  font-family: 'Lemon Milk', sans-serif;
+}
+
+.login-title {
+  font-size: 48px;
+  color: white;
+  margin: 0;
+}
+
+.login-subtitle {
+  font-size: 24px;
+  color: white;
+  margin: 0 0 30px;
+}
+
+.login-card {
+  background: white;
+  border-radius: 24px;
+  padding: 30px 20px;
+  width: 90%;
+  max-width: 350px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.login-description {
+  font-size: 14px;
+  margin-bottom: 20px;
+  color: #000;
+}
+
+.login-input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: none;
+  border-bottom: 1px solid #ccc;
+  font-size: 14px;
+  outline: none;
+}
+
+.login-label {
+  font-size: 14px;
+  margin: 16px 0 8px;
+  color: #000;
+}
+
+.btn-login {
+  width: 100%;
+  padding: 12px;
+  background-color: #002F6C;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  border: none;
+  border-radius: 12px; /* igual que el botón de Google */
+  margin-top: 20px;
+  cursor: pointer;
+}
+
+.login-footer {
+  font-size: 13px;
+  margin-top: 15px;
+}
+
+.link {
+  color: #0047AB;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn-image {
+  width: 100%;
+  max-width: 300px;
+  margin: 8px auto;
+  cursor: pointer;
+  display: block;
+}
+
+body,
+.login-container,
+.login-card,
+.login-description,
+.login-input,
+.login-label,
+.btn-login,
+.login-footer,
+.link {
+  font-family: 'Nunito', sans-serif;
+}
+
+.login-error {
+  color: red;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.login-error {
+  color: red;
+  font-size: 14px;
+  margin: 10px 0;
+}
+
+/* ===== Botón Google (estilo delgado con icono en cuadro blanco) ===== */
+.btn-google {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;     /* el texto queda visualmente centrado */
+  width: 100%;
+  height: 44px;                /* delgado */
+  padding: 0 16px;             /* sin padding vertical extra */
+  background: #1083ff;
+  border: none;
+  border-radius: 12px;         /* esquinas moderadas */
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: filter .12s ease, transform .08s ease;
+}
+
+.btn-google:hover { filter: brightness(1.05); }
+.btn-google:active { transform: translateY(1px); }
+.btn-google:focus { outline: 2px solid rgba(16,131,255,.35); outline-offset: 2px; }
+
+/* Cuadro blanco pegado al borde izquierdo (como en tu referencia) */
+.btn-google__iconbox {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: #fff;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* La “G” dentro del cuadro */
+.btn-google__icon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Texto */
+.btn-google__text {
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Separación con el resto de elementos del card */
+.login-card .btn-google { margin-top: 12px; }
+
+/* === Igualar bordes del botón superior y efecto de presión en ambos === */
+.btn-login,
+.btn-google {
+  box-shadow: 0 4px 10px rgba(0,0,0,.12);
+  transition: box-shadow .12s ease, transform .08s ease, filter .12s ease;
+}
+
+.btn-login:hover,
+.btn-google:hover {
+  filter: brightness(1.05);
+}
+
+.btn-login:active,
+.btn-google:active {
+  transform: translateY(1px);
+  box-shadow:
+    0 2px 6px rgba(0,0,0,.20),       /* sombra exterior más corta */
+    inset 0 2px 3px rgba(0,0,0,.08); /* sombrita interior */
+}
+
+.btn-login:focus,
+.btn-google:focus {
+  outline: 2px solid rgba(16,131,255,.35);
+  outline-offset: 2px;
+}
+
+/* ====== AutoTimeGuard (ventana inferior tipo sistema) ====== */
+.autotime-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 16px;
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  pointer-events: none; /* el card toma los clicks */
+}
+
+.autotime-sheet__content {
+  pointer-events: auto;
+  width: min(640px, 92vw);
+  background: #222;                /* fondo oscuro tipo sistema */
+  color: #fff;
+  border-radius: 16px 16px 0 0;    /* borde superior redondeado */
+  box-shadow: 0 -8px 20px rgba(0,0,0,.35);
+  padding: 16px 12px 12px;
+  border: 1px solid rgba(255,255,255,.08);
+  animation: slideUp .18s ease-out;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.autotime-sheet__title {
+  font-weight: 700;
+  margin: 0 8px 4px;
+  font-size: 15px;
+}
+
+.autotime-sheet__text {
+  margin: 0 8px 12px;
+  font-size: 13.5px;
+  line-height: 1.35;
+  color: #e8e8e8;
+}
+
+.autotime-sheet__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 6px 4px 2px;
+}
+
+.autotime-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .08s ease, box-shadow .12s ease, filter .12s ease;
+  box-shadow: 0 3px 10px rgba(0,0,0,.25);
+}
+
+.autotime-btn:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 3px rgba(0,0,0,.22), 0 1px 5px rgba(0,0,0,.22);
+}
+
+.autotime-btn--ok {
+  background: #1083ff;
+  color: #fff;
+}
+
+.autotime-btn--icon {
+  background: #3a3a3a;
+  color: #fff;
+  width: 44px; height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 900;
+}
+
+/* ===== Overlay que bloquea toda la app ===== */
+.autotime-backdrop {
+  position: fixed;
+  inset: 0;                   /* ocupa toda la pantalla */
+  z-index: 9999;
+  background: rgba(0,0,0,0.001); /* casi transparente, solo para capturar toques */
+  display: flex;
+  align-items: flex-end;      /* hoja pegada abajo */
+  justify-content: center;
+  pointer-events: auto;       /* captura los toques para bloquear la UI debajo */
+}
+
+/* Contenedor de la hoja (se mantiene como tenías) */
+.autotime-sheet {
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+/* (lo demás ya lo tienes) */
+

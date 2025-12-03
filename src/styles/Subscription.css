@@ -1,0 +1,139 @@
+/* ===== Contenedor y fondo ===== */
+.subscription-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(to bottom, #0d47a1, #757575);
+  /* más aire abajo para que el recuadro blanco no “apriete” el borde inferior */
+  padding: 2rem 1rem 3.25rem;
+}
+
+/* ===== Título grande ===== */
+.subscription-title {
+  text-align: center;
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #fff;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+/* ===== Tarjeta principal ===== */
+.subscription-card {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  /* un poquito más de padding inferior para equilibrar visualmente */
+  padding: 2rem 2rem 2.25rem;
+  width: 100%;
+  max-width: 420px;          /* ancho como lo tenías */
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  box-sizing: border-box;
+}
+
+/* ===== Marco azul interno ===== */
+.subscription-box {
+  border: 2px solid #0d47a1;
+  border-radius: 12px;
+  padding: 1.25rem 1rem;
+  /* antes solo había margen arriba; añadimos abajo para simetría */
+  margin: 1.25rem 0 1.25rem;
+}
+
+/* ===== Icono AL (como lo tenías) ===== */
+.al-icon {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+}
+.al-icon img {
+  width: 36px;
+  height: 36px;
+}
+
+/* ===== Subtítulo dentro de la card ===== */
+.subscription-card h2 {
+  text-align: center;
+  margin-bottom: 1rem;
+  font-weight: 800;
+}
+
+/* ===== Lista de características (8 ítems) ===== */
+.subscription-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.subscription-features li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.6rem 0;
+  font-size: 1rem;
+  line-height: 1.25rem;
+}
+.subscription-features li img {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+}
+
+/* ===== Opciones de suscripción (precios/botones) ===== */
+.sub-option {
+  text-align: center;
+  margin-top: 1rem;          /* separación respecto al marco azul */
+}
+.sub-option p {
+  font-size: 1.25rem;
+  margin: 0.5rem 0;
+  font-weight: 800;
+}
+.sub-text {
+  font-size: 0.9rem;
+}
+
+/* Badge de descuento del anual */
+.discount-badge {
+  background: #e53935;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  margin-left: 0.5rem;
+  font-weight: 700;
+}
+
+/* Botón amarillo */
+.subscribe-button {
+  background: #ffeb3b;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+  width: 100%;
+}
+.subscribe-button:active {
+  transform: translateY(1px);
+}
+.subscribe-button:hover {
+  background: #fdd835;
+}
+
+/* última opción sin margen extra abajo para que el padding de la card “respire” parejo */
+.subscription-card .sub-option:last-of-type {
+  margin-bottom: 0;
+}
+
+/* ===== Ajustes responsivos suaves ===== */
+@media (min-width: 480px) {
+  .subscription-card {
+    max-width: 460px;
+  }
+  .subscription-features li {
+    margin: 0.65rem 0;
+  }
+}
