@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, ChevronDown, ChevronUp, RotateCcw, Save, FolderOpen } from 'lucide-react';
+import { ArrowLeft, Trash2, ChevronDown, ChevronUp, RotateCcw, Save, FolderOpen, Eye } from 'lucide-react';
 import { SavePiecePackageModal } from './SavePiecePackageModal';
 import { SavedPiecePackagesModal } from './SavedPiecePackagesModal';
+import { GlassPackageModal, GlassInfo } from './GlassPackageModal';
 
 interface ProfilePiece {
   type: string;
@@ -24,13 +25,28 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
   const [currentPieceIndex, setCurrentPieceIndex] = useState(0);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
+  const [showGlassModal, setShowGlassModal] = useState(false);
+  const [glassData, setGlassData] = useState<GlassInfo[]>([]);
 
   useEffect(() => {
     const savedPieces = localStorage.getItem('packagePieces');
     if (savedPieces) {
       setPieces(JSON.parse(savedPieces));
     }
+    loadGlassData();
   }, []);
+
+  const loadGlassData = () => {
+    try {
+      const savedGlasses = localStorage.getItem('packageGlasses');
+      if (savedGlasses) {
+        setGlassData(JSON.parse(savedGlasses));
+      }
+    } catch (error) {
+      console.error('Error loading glass data:', error);
+      setGlassData([]);
+    }
+  };
 
   // Get unique window numbers
   const windowNumbers = [...new Set(pieces.map(piece => {
@@ -85,15 +101,20 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
   const handleDeleteAll = () => {
     if (confirm('¿Estás seguro que deseas eliminar todas las piezas? Esta acción no se puede deshacer.')) {
       localStorage.removeItem('packagePieces');
+      localStorage.removeItem('packageGlasses');
       setPieces([]);
+      setGlassData([]);
     }
   };
 
   const handleDeleteWindow = (windowNumber: number) => {
     if (confirm(`¿Estás seguro que deseas eliminar la Ventana ${windowNumber}? Esta acción no se puede deshacer.`)) {
       const newPieces = pieces.filter(piece => !piece.windowType.includes(`Ventana ${windowNumber}`));
+      const newGlasses = glassData.filter(glass => glass.windowNumber !== windowNumber);
       localStorage.setItem('packagePieces', JSON.stringify(newPieces));
+      localStorage.setItem('packageGlasses', JSON.stringify(newGlasses));
       setPieces(newPieces);
+      setGlassData(newGlasses);
       setShowDeleteMenu(false);
     }
   };
@@ -133,6 +154,7 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
       name,
       date: new Date().toISOString(),
       pieces,
+      glasses: glassData,
       totalPieces: pieces.reduce((sum, piece) => sum + piece.pieces, 0),
       profileTypes: [...new Set(pieces.map(piece => piece.type))]
     };
@@ -140,7 +162,7 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
     const savedPackages = JSON.parse(localStorage.getItem('savedPiecePackages') || '[]');
     savedPackages.push(packageData);
     localStorage.setItem('savedPiecePackages', JSON.stringify(savedPackages));
-    
+
     setShowSaveModal(false);
     alert('¡Paquete de piezas guardado exitosamente!');
   };
@@ -148,6 +170,15 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
   const handleLoadPackage = (packageData: any) => {
     localStorage.setItem('packagePieces', JSON.stringify(packageData.pieces));
     setPieces(packageData.pieces);
+
+    if (packageData.glasses) {
+      localStorage.setItem('packageGlasses', JSON.stringify(packageData.glasses));
+      setGlassData(packageData.glasses);
+    } else {
+      localStorage.removeItem('packageGlasses');
+      setGlassData([]);
+    }
+
     setShowLoadModal(false);
     alert(`Paquete "${packageData.name}" cargado exitosamente!`);
   };
@@ -266,6 +297,19 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
       </div>
 
       <div className="w-full max-w-2xl bg-white rounded-lg p-6 mb-8">
+        {glassData.length > 0 && (
+          <div className="mb-6">
+            <button
+              onClick={() => setShowGlassModal(true)}
+              className="w-full bg-green-500 text-white py-3 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2 font-bold border-2 border-green-300 shadow-md"
+            >
+              <Eye size={20} />
+              <span>VIDRIOS CONTEMPLADOS</span>
+            </button>
+          </div>
+        )}
+
+
         {profileOrder.map(profileType => {
           const profilePieces = groupedByType[profileType] || [];
           if (profilePieces.length === 0) return null;
@@ -370,6 +414,13 @@ export function TroquelCalculator({ onBack }: TroquelCalculatorProps) {
         <SavedPiecePackagesModal
           onClose={() => setShowLoadModal(false)}
           onLoadPackage={handleLoadPackage}
+        />
+      )}
+
+      {showGlassModal && (
+        <GlassPackageModal
+          onClose={() => setShowGlassModal(false)}
+          glassData={glassData}
         />
       )}
     </div>

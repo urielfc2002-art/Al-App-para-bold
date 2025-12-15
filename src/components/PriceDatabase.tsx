@@ -51,7 +51,8 @@ const AVAILABLE_COLORS = [
   'Champagne Brillante',
   'Madera',
   'Madera Nogal Texturizado',
-  'Gris Europa'
+  'Gris Europa',
+  'Bronce Oscuro'
 ];
 
 const createDefaultColorPrices = () => 

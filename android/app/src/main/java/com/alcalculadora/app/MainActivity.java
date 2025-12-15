@@ -10,6 +10,9 @@ import android.util.Log;
 
 import com.getcapacitor.BridgeActivity;
 
+// 👇 NUEVO: import del plugin de galería
+import com.alcalculadora.app.gallery.GalleryPlugin;
+
 public class MainActivity extends BridgeActivity {
   private static final String TAG = "ALMainActivityAutoTime";
   private ContentObserver autoTimeObserver;
@@ -17,6 +20,10 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+
+    // 👇 NUEVO: registrar el plugin Gallery para MediaStore
+    registerPlugin(GalleryPlugin.class);
+
     // Observa cambios en “Fecha y hora automática” y emite evento a JS
     registerAutoTimeObserver();
     // Emite estado inicial al cargar

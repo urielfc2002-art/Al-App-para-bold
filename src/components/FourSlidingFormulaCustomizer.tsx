@@ -68,7 +68,7 @@ export function FourSlidingFormulaCustomizer({ onClose, onSave }: FourSlidingFor
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-4 pt-8 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto mx-4">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">

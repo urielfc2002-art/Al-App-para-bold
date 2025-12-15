@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Calculator, Play, Settings, X, Package, Edit, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ArrowLeft, Plus, Trash2, Save, Calculator, Play, Settings, X, Package, Edit, RotateCcw, AlertCircle } from 'lucide-react';
 import { FormulaCuttingWorkflow } from './FormulaCuttingWorkflow';
 import { FormulaPackagePieces } from './FormulaPackagePieces';
 
@@ -43,6 +43,10 @@ export function FormulaGenerator({ onBack }: FormulaGeneratorProps) {
   const [formulas, setFormulas] = useState<ProfileFormula[]>([]);
   const [editingCalculatorId, setEditingCalculatorId] = useState<string | null>(null);
   const [editingFormulaId, setEditingFormulaId] = useState<string | null>(null);
+  const [showEditNotification, setShowEditNotification] = useState(false);
+  const [editingProfileName, setEditingProfileName] = useState('');
+  const [formShouldPulse, setFormShouldPulse] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
   const [currentProfile, setCurrentProfile] = useState({
     profileName: '',
     appliesTo: 'ancho' as 'ancho' | 'alto',
@@ -152,6 +156,20 @@ export function FormulaGenerator({ onBack }: FormulaGeneratorProps) {
       pieces: formula.pieces.toString()
     });
     setEditingFormulaId(formula.id);
+    setEditingProfileName(formula.profileName);
+
+    // Scroll to form
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+
+    // Show notification
+    setShowEditNotification(true);
+    setTimeout(() => setShowEditNotification(false), 3000);
+
+    // Trigger pulse animation
+    setFormShouldPulse(true);
+    setTimeout(() => setFormShouldPulse(false), 1000);
   };
 
   const cancelEditingFormula = () => {
@@ -162,6 +180,9 @@ export function FormulaGenerator({ onBack }: FormulaGeneratorProps) {
       pieces: ''
     });
     setEditingFormulaId(null);
+    setEditingProfileName('');
+    setShowEditNotification(false);
+    setFormShouldPulse(false);
   };
 
   const saveCalculator = () => {
@@ -538,9 +559,34 @@ export function FormulaGenerator({ onBack }: FormulaGeneratorProps) {
             />
           </div>
 
+          {/* Notification Toast */}
+          {showEditNotification && (
+            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-slide-down">
+              <div className="bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+                <AlertCircle size={20} />
+                <span className="font-medium">Editando perfil: {editingProfileName}</span>
+              </div>
+            </div>
+          )}
+
           {/* Formulario para agregar perfil */}
-          <div className="border-t pt-6 mb-6">
-            <h3 className="text-lg font-bold text-[#003366] mb-4">Agregar Perfil</h3>
+          <div
+            ref={formRef}
+            className={`border-t pt-6 mb-6 transition-all duration-300 ${
+              formShouldPulse ? 'ring-4 ring-blue-400 ring-opacity-50' : ''
+            } ${
+              editingFormulaId ? 'bg-blue-50 border-2 border-blue-400 rounded-lg p-4' : ''
+            }`}
+          >
+            {editingFormulaId && (
+              <div className="bg-blue-600 text-white px-4 py-2 rounded-lg mb-4 flex items-center gap-2">
+                <Edit size={18} />
+                <span className="font-medium">Modo Edición: {editingProfileName}</span>
+              </div>
+            )}
+            <h3 className="text-lg font-bold text-[#003366] mb-4">
+              {editingFormulaId ? 'Editar Perfil' : 'Agregar Perfil'}
+            </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
@@ -655,7 +701,14 @@ export function FormulaGenerator({ onBack }: FormulaGeneratorProps) {
               <h3 className="text-lg font-bold text-[#003366] mb-4">Perfiles Agregados</h3>
               <div className="space-y-3">
                 {formulas.map((formula) => (
-                  <div key={formula.id} className="bg-gray-50 p-4 rounded-lg flex justify-between items-center">
+                  <div
+                    key={formula.id}
+                    className={`p-4 rounded-lg flex justify-between items-center transition-all ${
+                      editingFormulaId === formula.id
+                        ? 'bg-blue-100 border-2 border-blue-500 shadow-md'
+                        : 'bg-gray-50'
+                    }`}
+                  >
                     <div>
                       <div className="font-medium text-[#003366]">
                         {formula.profileName} ({formula.pieces} pieza{formula.pieces !== 1 ? 's' : ''})

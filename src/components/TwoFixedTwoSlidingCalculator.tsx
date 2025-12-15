@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Settings, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown, ChevronUp, Check, X, HelpCircle } from 'lucide-react';
 import { TwoFixedTwoSlidingFormulaCustomizer } from './TwoFixedTwoSlidingFormulaCustomizer';
 import { TwoFixedTwoSlidingCuttingWorkflow } from './TwoFixedTwoSlidingCuttingWorkflow';
 import { useSyncedState } from '../hooks/useSyncedState';
@@ -36,6 +36,9 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
   const [isZocloMenuOpen, setIsZocloMenuOpen] = useState(false);
   const [isCustomizingUpper, setIsCustomizingUpper] = useState(false);
   const [isCustomizingLower, setIsCustomizingLower] = useState(false);
+  const [showGlassModal, setShowGlassModal] = useState(false);
+  const [showGlassHelpTooltip, setShowGlassHelpTooltip] = useState(false);
+  const [glassAdjustment, setGlassAdjustment] = useSyncedState<number | string>('twoFixedTwoSlidingGlassAdjustment', 2);
   const [zocloSelection, setZocloSelection] = useSyncedState<ZocloSelection>('twoFixedTwoSlidingZoclo', {
     upper: 'ZOCLO 1V',
     lower: 'ZOCLO 1V'
@@ -50,7 +53,7 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
   const calculateMeasurements = () => {
     const w = parseFloat(width);
     const h = parseFloat(height);
-    
+
     if (!w || !h) return null;
 
     return {
@@ -62,6 +65,35 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
       ventilaCorrCercochapa: { measure: (h - formula.ventilaCorrHeight).toFixed(1), pieces: 2 },
       ventilaCorrTraslape: { measure: (h - formula.ventilaCorrHeight).toFixed(1), pieces: 2 },
       zoclo: { measure: roundToDecimalString((w - formula.zocloWidth) / 4, 1), pieces: 8 },
+    };
+  };
+
+  const calculateGlassMeasurements = () => {
+    if (!results) return null;
+
+    const w = parseFloat(width);
+    const h = parseFloat(height);
+
+    if (!w || !h) return null;
+
+    const ZOCLO_MEASUREMENTS: { [key: string]: number } = {
+      'ZOCLO 1V': 5.9,
+      'ZOCLO 2V': 7.6,
+      'CABEZAL': 3.6
+    };
+
+    const zocloInferior = ZOCLO_MEASUREMENTS[zocloSelection.lower] || 5.9;
+    const zocloSuperior = ZOCLO_MEASUREMENTS[zocloSelection.upper] || 5.9;
+
+    const adjustmentValue = typeof glassAdjustment === 'string' ? 0 : glassAdjustment;
+    const glassWidth = parseFloat(results.zoclo.measure) + adjustmentValue;
+    const glassHeightFija = h - formula.ventilaFijaHeight - zocloInferior - zocloSuperior + adjustmentValue;
+    const glassHeightCorrediza = h - formula.ventilaCorrHeight - zocloInferior - zocloSuperior + adjustmentValue;
+
+    return {
+      width: glassWidth.toFixed(1),
+      heightFija: glassHeightFija.toFixed(1),
+      heightCorrediza: glassHeightCorrediza.toFixed(1)
     };
   };
 
@@ -123,6 +155,7 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
   }, [initialWidth, initialHeight, showNotesButton]);
 
   const results = calculateMeasurements();
+  const glassMeasurements = calculateGlassMeasurements();
 
   if (showCuttingWorkflow && results) {
     return (
@@ -224,7 +257,7 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
       </div>
 
       <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-8 relative">
           <svg
             width="120"
             height="120"
@@ -240,6 +273,14 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
             <line x1="12" y1="4" x2="12" y2="20" />
             <line x1="16" y1="4" x2="16" y2="20" />
           </svg>
+          <button
+            onClick={() => setShowGlassModal(true)}
+            className="absolute top-0 right-0 px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 rounded-lg shadow-lg flex flex-col items-center justify-center transition-all hover:scale-110 text-sm font-semibold text-gray-800 leading-tight"
+            aria-label="Contemplar vidrios"
+          >
+            <span>Contemplar</span>
+            <span>Vidrio</span>
+          </button>
         </div>
 
         <div className="text-center mb-8">
@@ -350,7 +391,7 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
                     alert('Por favor, ingrese las medidas primero');
                     return;
                   }
-                  
+
                   const currentPieces = JSON.parse(localStorage.getItem('packagePieces') || '[]');
                   const nextWindowNumber = currentPieces.length > 0 ? Math.max(...currentPieces.map((p: any) => {
                     const match = p.windowType?.match(/Ventana (\d+)/);
@@ -365,18 +406,18 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
                     { type: 'CERCO', measure: results.ventilaCorrCercochapa.measure, pieces: results.ventilaCorrCercochapa.pieces, windowType: `Ventana ${nextWindowNumber}` },
                     { type: 'TRASLAPE', measure: results.ventilaFijaTraslape.measure, pieces: results.ventilaFijaTraslape.pieces, windowType: `Ventana ${nextWindowNumber}` },
                     { type: 'TRASLAPE', measure: results.ventilaCorrTraslape.measure, pieces: results.ventilaCorrTraslape.pieces, windowType: `Ventana ${nextWindowNumber}` },
-                    { 
-                      type: 'ZOCLO', 
-                      measure: results.zoclo.measure, 
-                      pieces: results.zoclo.pieces / 2, 
+                    {
+                      type: 'ZOCLO',
+                      measure: results.zoclo.measure,
+                      pieces: results.zoclo.pieces / 2,
                       windowType: `Ventana ${nextWindowNumber}`,
                       zocloType: 'upper',
                       zocloProfile: zocloSelection.upper
                     },
-                    { 
-                      type: 'ZOCLO', 
-                      measure: results.zoclo.measure, 
-                      pieces: results.zoclo.pieces / 2, 
+                    {
+                      type: 'ZOCLO',
+                      measure: results.zoclo.measure,
+                      pieces: results.zoclo.pieces / 2,
                       windowType: `Ventana ${nextWindowNumber}`,
                       zocloType: 'lower',
                       zocloProfile: zocloSelection.lower
@@ -384,6 +425,41 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
                   ];
 
                   localStorage.setItem('packagePieces', JSON.stringify([...currentPieces, ...piecesToAdd]));
+
+                  if (glassMeasurements) {
+                    const currentGlasses = JSON.parse(localStorage.getItem('packageGlasses') || '[]');
+                    const adjustmentValue = typeof glassAdjustment === 'string' ? 0 : glassAdjustment;
+
+                    const glassesToAdd = [
+                      {
+                        windowNumber: nextWindowNumber,
+                        windowType: '2 Fijos y 2 Corredizos - Línea 3',
+                        calculatorType: 'two-fixed-two-sliding',
+                        glassType: 'fija' as const,
+                        width: glassMeasurements.width,
+                        height: glassMeasurements.heightFija,
+                        pieces: 2,
+                        zocloUpper: zocloSelection.upper,
+                        zocloLower: zocloSelection.lower,
+                        adjustment: adjustmentValue
+                      },
+                      {
+                        windowNumber: nextWindowNumber,
+                        windowType: '2 Fijos y 2 Corredizos - Línea 3',
+                        calculatorType: 'two-fixed-two-sliding',
+                        glassType: 'corrediza' as const,
+                        width: glassMeasurements.width,
+                        height: glassMeasurements.heightCorrediza,
+                        pieces: 2,
+                        zocloUpper: zocloSelection.upper,
+                        zocloLower: zocloSelection.lower,
+                        adjustment: adjustmentValue
+                      }
+                    ];
+
+                    localStorage.setItem('packageGlasses', JSON.stringify([...currentGlasses, ...glassesToAdd]));
+                  }
+
                   alert('¡Piezas agregadas al paquete!');
                 }}
                 className={`w-full py-3 rounded-lg font-bold ${
@@ -414,6 +490,131 @@ export function TwoFixedTwoSlidingCalculator({ onBack, onBackToNotes, initialWid
           onClose={() => setShowFormulaCustomizer(false)}
           onSave={handleSaveFormula}
         />
+      )}
+
+      {showGlassModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowGlassModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowGlassModal(false)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors"
+              aria-label="Cerrar modal"
+            >
+              <X size={24} />
+            </button>
+
+            <h2 className="text-2xl font-bold text-[#003366] mb-6 text-center">
+              Contemplar Vidrios
+            </h2>
+
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Settings size={20} className="text-green-600" />
+                  <h3 className="text-base font-bold text-[#003366]">Ajuste de Aumento de Vidrio:</h3>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowGlassHelpTooltip(!showGlassHelpTooltip)}
+                      className="text-green-600 hover:text-green-700 transition-colors"
+                      type="button"
+                    >
+                      <HelpCircle size={18} />
+                    </button>
+                    {showGlassHelpTooltip && (
+                      <div className="absolute left-0 top-8 z-50 w-72 bg-blue-600 text-white p-4 rounded-lg shadow-xl">
+                        <button
+                          onClick={() => setShowGlassHelpTooltip(false)}
+                          className="absolute top-2 right-2 text-white hover:text-gray-200"
+                          type="button"
+                        >
+                          <X size={16} />
+                        </button>
+                        <p className="text-sm leading-relaxed">
+                          En este campo podrás contemplar aumento que entra dentro del canal del marco donde se fija con vinil, por defecto se contempla 2cm pero se puede ajustar a tu comodidad.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setGlassAdjustment(2)}
+                  className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded-md font-semibold transition-colors"
+                >
+                  Restablecer
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={glassAdjustment}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === '') {
+                      setGlassAdjustment('');
+                    } else {
+                      const numValue = parseFloat(value);
+                      if (!isNaN(numValue) && numValue >= 0) {
+                        setGlassAdjustment(numValue);
+                      }
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  className="flex-1 px-3 py-2 border-2 border-green-300 rounded-lg text-center text-lg font-semibold focus:outline-none focus:border-green-500"
+                />
+                <span className="text-gray-600 font-medium">cm</span>
+              </div>
+            </div>
+
+            {glassMeasurements ? (
+              <div className="space-y-6">
+                <div className="bg-gradient-to-r from-orange-100 to-orange-200 border-2 border-orange-400 rounded-lg p-6">
+                  <h3 className="text-xl font-bold text-white bg-orange-500 px-4 py-2 rounded-lg mb-4 text-center">
+                    VENTILA FIJA
+                  </h3>
+                  <p className="text-gray-800 font-bold text-lg text-center">
+                    2 pz de {glassMeasurements.width} cm x {glassMeasurements.heightFija} cm
+                  </p>
+                </div>
+
+                <div className="bg-gradient-to-r from-blue-100 to-blue-200 border-2 border-blue-400 rounded-lg p-6">
+                  <h3 className="text-xl font-bold text-white bg-blue-500 px-4 py-2 rounded-lg mb-4 text-center">
+                    VENTILA CORREDIZA
+                  </h3>
+                  <p className="text-gray-800 font-bold text-lg text-center">
+                    2 pz de {glassMeasurements.width} cm x {glassMeasurements.heightCorrediza} cm
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 mt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-2">Información de Perfiles:</h4>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>Zócalo Superior: <span className="font-semibold">{zocloSelection.upper}</span></p>
+                    <p>Zócalo Inferior: <span className="font-semibold">{zocloSelection.lower}</span></p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center text-gray-500 py-8">
+                <p>Por favor, ingrese las medidas primero.</p>
+              </div>
+            )}
+
+            <button
+              onClick={() => setShowGlassModal(false)}
+              className="w-full mt-6 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg font-bold transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

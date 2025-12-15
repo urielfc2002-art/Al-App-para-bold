@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Settings, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { ArrowLeft, Settings, ChevronDown, ChevronUp, Check, X, HelpCircle } from 'lucide-react';
 import { WindowCalculatorLine2FormulaCustomizer } from './WindowCalculatorLine2FormulaCustomizer';
 import { useSyncedState } from '../hooks/useSyncedState';
 import { formatMeasurement } from '../hooks/formatMeasurement';
 import { HardwareSearchAndSelection } from './HardwareSearchAndSelection';
+import { GlassSearchAndSelection } from './GlassSearchAndSelection';
 import { getProfilePriceWithIVA } from '../utils/priceCalculations';
 import { roundToDecimalString } from '../utils/roundDecimal';
 
@@ -47,6 +48,24 @@ interface SelectedHardware {
   pricePerPackage: number;
   pricePerPiece: number;
 }
+
+interface Glass {
+  name: string;
+  pricePerPiece: string;
+  pricePerM2: string;
+}
+
+interface SelectedGlass {
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+  chargingMethod: 'piece' | 'm2';
+  pricePerPiece: number;
+  pricePerM2: number;
+  id?: string;
+}
+
 const AVAILABLE_COLORS = [
   'Blanco',
   'Negro',
@@ -56,7 +75,8 @@ const AVAILABLE_COLORS = [
   'Champagne Brillante',
   'Madera',
   'Madera Nogal Texturizado',
-  'Gris Europa'
+  'Gris Europa',
+  'Bronce Oscuro'
 ];
 
 export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initialWidth, initialHeight, showNotesButton = false }: FixedSlidingQuoteCalculatorLine2Props) {
@@ -80,6 +100,7 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
   const [showColorMenu, setShowColorMenu] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [hardware, setHardware] = useState<Hardware[]>([]);
+  const [glass, setGlass] = useState<Glass[]>([]);
 
   const initialPropsAppliedRef = React.useRef(false);
 
@@ -100,8 +121,27 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
     return [];
   });
 
-  // Estado para zoclo selection
-  const [zocloSelection, setZocloSelection] = useState({
+  // Estado para vidrios seleccionados
+  const [selectedGlass, setSelectedGlass] = useState<SelectedGlass[]>(() => {
+    const savedGlass = localStorage.getItem('selectedFixedSlidingLine2Glass');
+    if (savedGlass) {
+      try {
+        return JSON.parse(savedGlass);
+      } catch (error) {
+        console.error('Error loading glass:', error);
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Estados para modal de vidrios
+  const [showGlassModal, setShowGlassModal] = useState(false);
+  const [showGlassHelpTooltip, setShowGlassHelpTooltip] = useState(false);
+  const [glassAdjustment, setGlassAdjustment] = useSyncedState<number | ''>('fixedSlidingLine2GlassAdjustment', 2);
+
+  // Estado para zoclo selection con persistencia
+  const [zocloSelection, setZocloSelection] = useSyncedState<{upper: string; lower: string}>('fixedSlidingLine2QuoteZoclo', {
     upper: 'ZOCLO 1V_L2',
     lower: 'ZOCLO 1V_L2'
   });
@@ -170,12 +210,28 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
         setHardware([]);
       }
     }
+
+    const savedGlass = localStorage.getItem('windowGlass');
+    if (savedGlass) {
+      try {
+        const parsedGlass = JSON.parse(savedGlass);
+        setGlass(parsedGlass);
+      } catch (error) {
+        console.error('Error loading glass:', error);
+        setGlass([]);
+      }
+    }
   }, []);
 
   // Guardar herrajes seleccionados en localStorage cuando cambien
   useEffect(() => {
     localStorage.setItem('selectedFixedSlidingLine2Hardware', JSON.stringify(selectedHardware));
   }, [selectedHardware]);
+
+  // Guardar vidrios seleccionados en localStorage cuando cambien
+  useEffect(() => {
+    localStorage.setItem('selectedFixedSlidingLine2Glass', JSON.stringify(selectedGlass));
+  }, [selectedGlass]);
 
   // Función para detectar la posición del scroll y determinar dónde mostrar el modal
   const determineModalPosition = () => {
@@ -198,6 +254,58 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
 
   const getProfilePrice = (name: string): { price6m: number; pricePerM: number } => {
     return getProfilePriceWithIVA(name, selectedColor, profiles, materialIvaPercentage);
+  };
+
+  const calculateGlassMeasurements = () => {
+    const w = parseFloat(width);
+    const h = parseFloat(height);
+
+    if (!w || !h) return null;
+
+    const zocloMeasurements: { [key: string]: number } = {
+      'ZOCLO 1V_L2': 3.7,
+      'ZOCLO 2V_L2': 7.5,
+      'CABEZAL_L2': 3.7,
+    };
+
+    const upperZoclo = zocloMeasurements[zocloSelection.upper] || 3.7;
+    const lowerZoclo = zocloMeasurements[zocloSelection.lower] || 3.7;
+
+    const adjustment = typeof glassAdjustment === 'number' ? glassAdjustment : 0;
+    const zocloMeasure = roundToDecimalString((w - formula.zocloWidth) / 2, 1);
+    const glassWidth = parseFloat(zocloMeasure) + adjustment;
+    const glassHeightFija = h - formula.ventilaFijaHeight - upperZoclo - lowerZoclo + adjustment;
+    const glassHeightCorrediza = h - formula.ventilaCorrHeight - upperZoclo - lowerZoclo + adjustment;
+
+    return {
+      fija: {
+        width: glassWidth.toFixed(1),
+        height: glassHeightFija.toFixed(1)
+      },
+      corrediza: {
+        width: glassWidth.toFixed(1),
+        height: glassHeightCorrediza.toFixed(1)
+      }
+    };
+  };
+
+  const calculateSquareMeters = () => {
+    const glassMeasurements = calculateGlassMeasurements();
+    if (!glassMeasurements) return null;
+
+    const widthInMeters = parseFloat(glassMeasurements.fija.width) / 100;
+    const heightFijaInMeters = parseFloat(glassMeasurements.fija.height) / 100;
+    const heightCorrInMeters = parseFloat(glassMeasurements.corrediza.height) / 100;
+
+    const areaFija = widthInMeters * heightFijaInMeters;
+    const areaCorr = widthInMeters * heightCorrInMeters;
+    const totalArea = areaFija + areaCorr;
+
+    return {
+      area: areaFija,
+      totalArea: totalArea,
+      pieces: 2
+    };
   };
 
   const calculateMeasurements = () => {
@@ -340,7 +448,16 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
     const additionalHardwareItems = selectedHardware.map(item => ({
       name: item.name,
       pieces: item.quantity,
-      cost: item.total
+      cost: item.total,
+      chargingMethod: item.chargingMethod
+    }));
+
+    // Preparar los vidrios para incluirlos en el paquete
+    const additionalGlassItems = selectedGlass.map(item => ({
+      name: item.name,
+      pieces: item.quantity,
+      cost: item.total,
+      chargingMethod: item.chargingMethod
     }));
 
     const windowData = {
@@ -352,29 +469,27 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
       color: selectedColor,
       date: new Date().toISOString(),
       method,
+      zocloConfig: {
+        upper: zocloSelection.upper,
+        lower: zocloSelection.lower
+      },
       profiles: method === 'fraction' ? [
         { name: 'JAMBA_L2', totalLength: parseFloat(results.fractionCosts.jamba.totalLength), cost: parseFloat(results.fractionCosts.jamba.cost) },
         { name: 'RIEL_L2', totalLength: parseFloat(results.fractionCosts.riel.totalLength), cost: parseFloat(results.fractionCosts.riel.cost) },
         { name: 'CERCO_L2', totalLength: parseFloat(results.fractionCosts.cercochapa.totalLength), cost: parseFloat(results.fractionCosts.cercochapa.cost) },
         { name: 'TRASLAPE_L2', totalLength: parseFloat(results.fractionCosts.traslape.totalLength), cost: parseFloat(results.fractionCosts.traslape.cost) },
-        // NEW: Add zoclo upper and lower to fraction profiles
-        { name: zocloSelection.upper, totalLength: parseFloat(results.fractionCosts.zocloUpper.totalLength), cost: parseFloat(results.fractionCosts.zocloUpper.cost) },
-        { name: zocloSelection.lower, totalLength: parseFloat(results.fractionCosts.zocloLower.totalLength), cost: parseFloat(results.fractionCosts.zocloLower.cost) }
+        { name: zocloSelection.upper, totalLength: parseFloat(results.fractionCosts.zocloUpper.totalLength), cost: parseFloat(results.fractionCosts.zocloUpper.cost), zocloPosition: 'superior' },
+        { name: zocloSelection.lower, totalLength: parseFloat(results.fractionCosts.zocloLower.totalLength), cost: parseFloat(results.fractionCosts.zocloLower.cost), zocloPosition: 'inferior' }
       ] : [
         { name: 'JAMBA_L2', totalLength: results.grossCosts.jamba.pieces * 600, cost: parseFloat(results.grossCosts.jamba.cost) },
         { name: 'RIEL_L2', totalLength: results.grossCosts.riel.pieces * 600, cost: parseFloat(results.grossCosts.riel.cost) },
         { name: 'CERCO_L2', totalLength: results.grossCosts.cercochapa.pieces * 600, cost: parseFloat(results.grossCosts.cercochapa.cost) },
         { name: 'TRASLAPE_L2', totalLength: results.grossCosts.traslape.pieces * 600, cost: parseFloat(results.grossCosts.traslape.cost) },
-        // NEW: Add zoclo to gross profiles based on its structure
-        ...('pieces' in results.zocloCost
-          ? [{ name: zocloSelection.upper, totalLength: results.zocloCost.pieces * 600, cost: parseFloat(results.zocloCost.cost) }]
-          : [
-              { name: zocloSelection.upper, totalLength: results.zocloCost.upper.pieces * 600, cost: parseFloat(results.zocloCost.upper.cost) },
-              { name: zocloSelection.lower, totalLength: results.zocloCost.lower.pieces * 600, cost: parseFloat(results.zocloCost.lower.cost) }
-            ]
-        )
+        { name: zocloSelection.upper, totalLength: parseFloat(results.fractionCosts.zocloUpper.totalLength), cost: parseFloat(results.fractionCosts.zocloUpper.cost), zocloPosition: 'superior' },
+        { name: zocloSelection.lower, totalLength: parseFloat(results.fractionCosts.zocloLower.totalLength), cost: parseFloat(results.fractionCosts.zocloLower.cost), zocloPosition: 'inferior' }
       ],
       hardware: additionalHardwareItems,
+      glass: additionalGlassItems,
       totalCost: method === 'fraction' ? totalFractionCost : totalGrossCost
     };
 
@@ -391,25 +506,29 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
   // Calcular el costo total de los herrajes
   const additionalHardwareCost = selectedHardware.reduce((sum, item) => sum + item.total, 0);
 
-  const totalFractionCost = results ? 
+  // Calcular el costo total de los vidrios
+  const additionalGlassCost = selectedGlass.reduce((sum, item) => sum + item.total, 0);
+
+  const totalFractionCost = results ?
     parseFloat(results.fractionCosts.jamba.cost) +
     parseFloat(results.fractionCosts.riel.cost) +
     parseFloat(results.fractionCosts.cercochapa.cost) +
     parseFloat(results.fractionCosts.traslape.cost) +
-    parseFloat(results.fractionCosts.zocloUpper.cost) + // NEW
-    parseFloat(results.fractionCosts.zocloLower.cost) + // NEW
-    additionalHardwareCost : 0;
+    parseFloat(results.fractionCosts.zocloUpper.cost) +
+    parseFloat(results.fractionCosts.zocloLower.cost) +
+    additionalHardwareCost +
+    additionalGlassCost : 0;
 
-  const totalGrossCost = results ? 
+  const totalGrossCost = results ?
     parseFloat(results.grossCosts.jamba.cost) +
     parseFloat(results.grossCosts.riel.cost) +
     parseFloat(results.grossCosts.cercochapa.cost) +
     parseFloat(results.grossCosts.traslape.cost) +
-    // NEW: Sum zoclo gross costs based on its structure
     ('pieces' in results.zocloCost ?
       parseFloat(results.zocloCost.cost) :
       parseFloat(results.zocloCost.upper.cost) + parseFloat(results.zocloCost.lower.cost)) +
-    additionalHardwareCost : 0;
+    additionalHardwareCost +
+    additionalGlassCost : 0;
 
   return (
     <div className="min-h-screen bg-[#003366] flex flex-col items-center px-4 animate-fade-in">
@@ -508,7 +627,7 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
       </div>
 
       <div className="w-full max-w-md">
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-8 relative">
           <svg
             width="120"
             height="120"
@@ -522,6 +641,14 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
             <rect x="4" y="4" width="16" height="16" />
             <line x1="12" y1="4" x2="12" y2="20" />
           </svg>
+          <button
+            onClick={() => setShowGlassModal(true)}
+            className="absolute top-0 right-0 bg-yellow-400 text-black px-3 py-1 rounded-lg text-xs font-bold hover:bg-yellow-500 transition-all hover:scale-110 shadow-lg"
+            style={{ fontSize: '10px', lineHeight: '1.2' }}
+          >
+            <div>Contemplar</div>
+            <div>Vidrio</div>
+          </button>
         </div>
 
         <div className="text-center mb-8">
@@ -675,14 +802,22 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
                   </div>
                 </div>
 
-                {/* Sección de perfiles adicionales */}
                 {/* Sección de herrajes */}
                 <div className="border-t border-gray-200 pt-4 mt-4">
-                  <HardwareSearchAndSelection 
+                  <HardwareSearchAndSelection
                     hardware={hardware}
                     selectedHardware={selectedHardware}
                     onSelectedHardwareChange={setSelectedHardware}
                     lineType="all"
+                  />
+                </div>
+
+                {/* Sección de vidrios */}
+                <div className="border-t border-gray-200 pt-4 mt-4">
+                  <GlassSearchAndSelection
+                    glass={glass}
+                    selectedGlass={selectedGlass}
+                    onSelectedGlassChange={setSelectedGlass}
                   />
                 </div>
 
@@ -778,6 +913,23 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
                   </div>
                 )}
 
+                {selectedGlass.length > 0 && (
+                  <div className="border-b border-gray-200 pb-2">
+                    <div className="text-lg font-medium mb-2">VIDRIOS:</div>
+                    <div className="pl-4">
+                      {selectedGlass.map((item, index) => (
+                        <div key={index} className="flex justify-between items-center mt-1">
+                          <span className="text-sm">{item.name}:</span>
+                          <div className="text-right">
+                            <div className="font-bold">{item.quantity} {item.chargingMethod === 'm2' ? 'M²' : 'PIEZA' + (item.quantity > 1 ? 'S' : '')}</div>
+                            <div className="text-sm text-gray-600">${item.total.toFixed(2)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex justify-between pt-4">
                   <span className="text-xl font-bold">COSTO TOTAL BRUTO:</span>
                   <span className="text-xl font-bold">${totalGrossCost.toFixed(2)}</span>
@@ -831,6 +983,133 @@ export function FixedSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initia
           </>
         )}
       </div>
+
+      {showGlassModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center p-4 pt-8 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl my-8">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h3 className="text-2xl font-bold text-[#003366]">Contemplar Vidrios</h3>
+              <button
+                onClick={() => setShowGlassModal(false)}
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <h4 className="text-lg font-bold text-green-800">Ajuste de Aumento de Vidrio</h4>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowGlassHelpTooltip(!showGlassHelpTooltip)}
+                      className="text-green-600 hover:text-green-700 transition-colors"
+                      type="button"
+                    >
+                      <HelpCircle size={20} />
+                    </button>
+                    {showGlassHelpTooltip && (
+                      <div className="absolute left-0 top-8 z-50 w-72 bg-blue-600 text-white p-4 rounded-lg shadow-xl">
+                        <button
+                          onClick={() => setShowGlassHelpTooltip(false)}
+                          className="absolute top-2 right-2 text-white hover:text-gray-200"
+                          type="button"
+                        >
+                          <X size={16} />
+                        </button>
+                        <p className="text-sm leading-relaxed">
+                          En este campo podrás contemplar aumento que entra dentro del canal del marco donde se fija con vinil, por defecto se contempla 2cm pero se puede ajustar a tu comodidad.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="text-green-700 font-medium">Aumento (cm):</label>
+                  <input
+                    type="number"
+                    value={glassAdjustment}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') {
+                        setGlassAdjustment('');
+                      } else {
+                        setGlassAdjustment(parseFloat(val) || 0);
+                      }
+                    }}
+                    className="w-24 px-3 py-2 border border-green-300 rounded-lg text-center font-bold"
+                    step="0.1"
+                  />
+                  <button
+                    onClick={() => setGlassAdjustment(2)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-bold"
+                  >
+                    Restablecer
+                  </button>
+                </div>
+              </div>
+
+              {calculateGlassMeasurements() && (
+                <>
+                  <div className="bg-blue-50 border-2 border-blue-500 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-blue-800 mb-3">VENTILA FIJA</h4>
+                    <div className="bg-white rounded p-3">
+                      <p className="text-blue-900 font-bold">
+                        1 pz de {calculateGlassMeasurements()?.fija.width} x {calculateGlassMeasurements()?.fija.height} cm
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border-2 border-blue-500 rounded-lg p-4">
+                    <h4 className="text-lg font-bold text-blue-800 mb-3">VENTILA CORREDIZA</h4>
+                    <div className="bg-white rounded p-3">
+                      <p className="text-blue-900 font-bold">
+                        1 pz de {calculateGlassMeasurements()?.corrediza.width} x {calculateGlassMeasurements()?.corrediza.height} cm
+                      </p>
+                    </div>
+                  </div>
+
+                  {calculateSquareMeters() && (
+                    <div className="bg-purple-50 border-2 border-purple-500 rounded-lg p-4">
+                      <h4 className="text-lg font-bold text-purple-800 mb-2">Metros Cuadrados Totales</h4>
+                      <p className="text-3xl font-bold text-purple-900">
+                        {calculateSquareMeters()?.totalArea.toFixed(2)} m²
+                      </p>
+                      <p className="text-sm text-purple-600 mt-1">
+                        Para {calculateSquareMeters()?.pieces} vidrios
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                    <h4 className="text-md font-bold text-gray-800 mb-3">Información de Perfiles</h4>
+                    <div className="space-y-2 text-sm text-gray-700">
+                      <div className="flex justify-between">
+                        <span className="font-medium">Perfil Superior:</span>
+                        <span className="font-bold">{zocloSelection.upper.replace('_L2', '')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium">Perfil Inferior:</span>
+                        <span className="font-bold">{zocloSelection.lower.replace('_L2', '')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowGlassModal(false)}
+                className="w-full bg-[#003366] text-white py-3 rounded-lg font-bold hover:bg-[#004488] transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showFormulaCustomizer && (
         <WindowCalculatorLine2FormulaCustomizer

@@ -174,10 +174,20 @@ export function calculateHardwareCostWithIVA(
   basePricePerPackage: number,
   basePricePerPiece: number,
   quantity: number,
-  chargingMethod: 'package' | 'piece',
-  ivaRate: number = 16
+  chargingMethod: 'package' | 'piece' | 'm2',
+  ivaRate: number = 16,
+  basePricePerM2?: number
 ): { price: number; total: number } {
-  const basePrice = chargingMethod === 'package' ? basePricePerPackage : basePricePerPiece;
+  let basePrice: number;
+
+  if (chargingMethod === 'm2') {
+    basePrice = basePricePerM2 || 0;
+  } else if (chargingMethod === 'package') {
+    basePrice = basePricePerPackage;
+  } else {
+    basePrice = basePricePerPiece;
+  }
+
   const ivaDecimal = ivaRate / 100;
   const priceWithIVA = basePrice * (1 + ivaDecimal);
   const total = priceWithIVA * quantity;
@@ -391,11 +401,12 @@ export function recalculateGeneralQuotation(
   savedQuote: any,
   profilesData: Profile[],
   hardwareData: Hardware[],
-  glassData: Glass[]
+  glassData: Glass[],
+  currentMaterialIvaPercentage?: number
 ): any {
   try {
     const profitPercentage = savedQuote.profitPercentage ?? 0;
-    const materialIvaRate = 16;
+    const materialIvaRate = currentMaterialIvaPercentage ?? savedQuote.materialIvaPercentage ?? 16;
 
     const updatedProfiles = savedQuote.selectedProfiles.map((profile: any) => {
       const pricesWithIVA = getProfilePriceWithIVA(

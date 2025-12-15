@@ -48,7 +48,8 @@ export function SavedGeneralQuotesModal({ onClose, onLoadQuote }: SavedGeneralQu
             quote,
             priceData.profiles,
             priceData.hardware,
-            priceData.glass
+            priceData.glass,
+            priceData.materialIvaPercentage
           );
         });
 

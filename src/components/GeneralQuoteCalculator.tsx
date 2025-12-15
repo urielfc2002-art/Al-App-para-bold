@@ -80,7 +80,8 @@ const AVAILABLE_COLORS = [
   'Champagne Brillante',
   'Madera',
   'Madera Nogal Texturizado',
-  'Gris Europa'
+  'Gris Europa',
+  'Bronce Oscuro'
 ];
 
 export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) {
@@ -93,7 +94,8 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
   const [selectedHardware, setSelectedHardware] = useSyncedState<SelectedHardware[]>('generalQuoteSelectedHardware', []);
   const [selectedGlass, setSelectedGlass] = useSyncedState<SelectedGlass[]>('generalQuoteSelectedGlass', []);
   const [profitPercentage, setProfitPercentage] = useSyncedState<number>('generalQuoteProfitPercentage', 0);
-  const [ivaPercentage, setIvaPercentage] = useSyncedState<number>('generalQuoteIvaPercentage', 16);
+  const [ivaPercentage, setIvaPercentage] = useSyncedState<number>('generalQuoteIvaPercentage', 0);
+  const [materialIvaPercentage] = useSyncedState<number>('materialIvaPercentage', 0);
   const [extraCostsList, setExtraCostsList] = useSyncedState<ExtraCost[]>('generalQuoteExtraCostsList', []);
   const [newExtraCostName, setNewExtraCostName] = useSyncedState<string>('generalQuoteNewExtraCostName', '');
   const [newExtraCostAmount, setNewExtraCostAmount] = useSyncedState<number>('generalQuoteNewExtraCostAmount', 0);
@@ -175,6 +177,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
       extraCostsList,
       profitPercentage,
       ivaPercentage,
+      materialIvaPercentage,
       totals: {
         profilesCost: totalProfilesCost,
         hardwareCost: totalHardwareCost,
@@ -251,7 +254,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
     setSelectedGlass(quote.selectedGlass || []);
     setExtraCostsList(quote.extraCostsList || []);
     setProfitPercentage(quote.profitPercentage || 0);
-    setIvaPercentage(quote.ivaPercentage !== undefined ? quote.ivaPercentage : 16);
+    setIvaPercentage(quote.ivaPercentage !== undefined ? quote.ivaPercentage : 0);
     setQuoteName(quote.name || '');
     setNewExtraCostName('');
     setNewExtraCostAmount(0);
@@ -551,7 +554,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
                         value={ivaPercentage === 0 ? '' : ivaPercentage}
                         onChange={(e) => setIvaPercentage(parseFloat(e.target.value) || 0)}
                         className="w-20 px-2 py-1 border rounded text-right"
-                        placeholder="16.00"
+                        placeholder="0.00"
                       />
                       <span className="ml-1">%</span>
                     </div>

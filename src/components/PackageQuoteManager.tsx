@@ -11,10 +11,11 @@ import { usePriceUpdates } from '../hooks/usePriceUpdates';
 interface StandaloneHardwareItem {
   name: string;
   quantity: number;
-  chargingMethod: 'package' | 'piece';
+  chargingMethod: 'package' | 'piece' | 'm2';
   basePricePerPackage: number;
   basePricePerPiece: number;
-  category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes';
+  basePricePerM2?: number;
+  category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes' | 'vidrios';
 }
 
 interface QuotedWindow {
@@ -35,6 +36,13 @@ interface QuotedWindow {
     name: string;
     pieces: number;
     cost: number;
+    chargingMethod?: 'package' | 'piece';
+  }[];
+  glass?: {
+    name: string;
+    pieces: number;
+    cost: number;
+    chargingMethod?: 'piece' | 'm2';
   }[];
   totalCost: number;
 }
@@ -48,12 +56,14 @@ interface ProfileSummary {
   totalPiecesNeededGross: number;
   fractionCost: number;
   grossCost: number;
+  zocloPosition?: 'superior' | 'inferior';
 }
 
 interface HardwareSummary {
   name: string;
   pieces: number;
   cost: number;
+  chargingMethod?: 'package' | 'piece' | 'm2';
 }
 
 interface ExtraCost {
@@ -199,7 +209,8 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
             const original = standaloneHardwareItems[index];
             return original && (
               item.basePricePerPackage !== original.basePricePerPackage ||
-              item.basePricePerPiece !== original.basePricePerPiece
+              item.basePricePerPiece !== original.basePricePerPiece ||
+              item.basePricePerM2 !== original.basePricePerM2
             );
           });
 
@@ -275,15 +286,25 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         const newBasePricePerM2 = parseFloat(glassInDB.pricePerM2) || 0;
 
         console.log(`   Precios de vidrio en DB: pieza=$${newBasePricePerPiece}, m²=$${newBasePricePerM2}`);
-        console.log(`   Precios actuales: pieza=$${item.basePricePerPiece}`);
+        console.log(`   Precios actuales: pieza=$${item.basePricePerPiece}, m²=$${item.basePricePerM2 || 0}`);
 
-        if (newBasePricePerPiece !== item.basePricePerPiece) {
+        if (
+          newBasePricePerPiece !== item.basePricePerPiece ||
+          (item.basePricePerM2 !== undefined && newBasePricePerM2 !== item.basePricePerM2)
+        ) {
           hasChanges = true;
-          console.log(`💰 Actualizando precio base de vidrio "${item.name}": $${item.basePricePerPiece} → $${newBasePricePerPiece} (pieza)`);
+          console.log(`💰 Actualizando precio base de vidrio "${item.name}":`);
+          if (newBasePricePerPiece !== item.basePricePerPiece) {
+            console.log(`   Pieza: $${item.basePricePerPiece} → $${newBasePricePerPiece}`);
+          }
+          if (item.basePricePerM2 !== undefined && newBasePricePerM2 !== item.basePricePerM2) {
+            console.log(`   m²: $${item.basePricePerM2} → $${newBasePricePerM2}`);
+          }
 
           return {
             ...item,
-            basePricePerPiece: newBasePricePerPiece
+            basePricePerPiece: newBasePricePerPiece,
+            basePricePerM2: newBasePricePerM2
           };
         } else {
           console.log(`   ✓ Sin cambios para vidrio "${item.name}"`);
@@ -313,7 +334,36 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     const summary: { [key: string]: ProfileSummary } = {};
 
     quotes.forEach(quote => {
-      quote.profiles.forEach(profile => {
+      quote.profiles.forEach((profile: any, profileIndex: number) => {
+        const isZoclo = profile.name.includes('ZOCLO') || profile.name.includes('CABEZAL');
+
+        let zocloPosition: 'superior' | 'inferior' | undefined = undefined;
+
+        if (isZoclo) {
+          if (profile.zocloPosition) {
+            zocloPosition = profile.zocloPosition;
+          } else if (quote.zocloConfig) {
+            if (profile.name === quote.zocloConfig.upper) {
+              zocloPosition = 'superior';
+            } else if (profile.name === quote.zocloConfig.lower) {
+              zocloPosition = 'inferior';
+            } else {
+              const zocloProfiles = quote.profiles.filter((p: any) =>
+                p.name.includes('ZOCLO') || p.name.includes('CABEZAL')
+              );
+              const zocloIndex = zocloProfiles.findIndex((p: any) => p === profile);
+              zocloPosition = zocloIndex === 0 ? 'superior' : 'inferior';
+            }
+          } else {
+            const zocloProfiles = quote.profiles.filter((p: any) =>
+              p.name.includes('ZOCLO') || p.name.includes('CABEZAL')
+            );
+            const zocloIndex = zocloProfiles.findIndex((p: any) => p === profile);
+            zocloPosition = zocloIndex === 0 ? 'superior' : 'inferior';
+          }
+        }
+
+        // Para zócalos y cabezales, NO separar por posición en la clave de agrupación
         const key = `${profile.name}-${quote.color}`;
 
         if (!summary[key]) {
@@ -325,7 +375,9 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
             piecesNeeded: 0,
             totalPiecesNeededGross: 0,
             fractionCost: 0,
-            grossCost: 0
+            grossCost: 0,
+            // Para zócalos, zocloPosition será undefined para consolidar visualmente
+            zocloPosition: isZoclo ? undefined : zocloPosition
           };
         }
 
@@ -457,84 +509,94 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
           sobrantes: traslapeOptimization.remainders,
           diferencia: traslapeOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
         });
-      } else if (profile.name === 'ZOCLO 1V_L3') {
-        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA ZOCLO 1V LÍNEA 3 (SOLO SUPERIORES)
-        console.log('🔧 Aplicando optimización específica para ZOCLO 1V_L3 (superiores)');
-        const zocloOptimization = calculateProfileOptimization('ZOCLO', quotes, 600, 'superior');
-        profile.piecesNeeded = zocloOptimization.piecesNeeded;
+      } else if (profile.name.includes('ZOCLO') || profile.name.includes('CABEZAL')) {
+        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA ZÓCALOS/CABEZALES (SIN PEGAR RETAZOS)
+        // Recolectar todas las piezas individuales de este tipo específico de zócalo
+        const zocloPieces: { length: number; windowType: string }[] = [];
 
-        console.log(`📊 Resultado optimización ZOCLO 1V_L3:`, {
-          longitudTotal: profile.totalLength,
-          piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
-          piezasOptimizadas: zocloOptimization.piecesNeeded,
-          sobrantes: zocloOptimization.remainders,
-          diferencia: zocloOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
-        });
-      } else if (profile.name === 'ZOCLO 2V_L3') {
-        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA ZOCLO 2V LÍNEA 3 (SOLO INFERIORES)
-        console.log('🔧 Aplicando optimización específica para ZOCLO 2V_L3 (inferiores)');
-        const zocloOptimization = calculateProfileOptimization('ZOCLO', quotes, 600, 'inferior');
-        profile.piecesNeeded = zocloOptimization.piecesNeeded;
+        quotes.forEach((quote, index) => {
+          if (!quote.zocloConfig) return;
 
-        console.log(`📊 Resultado optimización ZOCLO 2V_L3:`, {
-          longitudTotal: profile.totalLength,
-          piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
-          piezasOptimizadas: zocloOptimization.piecesNeeded,
-          sobrantes: zocloOptimization.remainders,
-          diferencia: zocloOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
-        });
-      } else if (profile.name === 'CABEZAL_L3') {
-        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA CABEZAL LÍNEA 3 (SOLO SUPERIORES)
-        console.log('🔧 Aplicando optimización específica para CABEZAL_L3 (superiores)');
-        const cabezalOptimization = calculateProfileOptimization('ZOCLO', quotes, 600, 'superior');
-        profile.piecesNeeded = cabezalOptimization.piecesNeeded;
+          const width = parseFloat(quote.width);
+          const height = parseFloat(quote.height);
+          const windowId = `Ventana #${index + 1} - ${quote.type}`;
 
-        console.log(`📊 Resultado optimización CABEZAL_L3:`, {
-          longitudTotal: profile.totalLength,
-          piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
-          piezasOptimizadas: cabezalOptimization.piecesNeeded,
-          sobrantes: cabezalOptimization.remainders,
-          diferencia: cabezalOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
-        });
-      } else if (profile.name === 'ZOCLO 1V_L2') {
-        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA ZOCLO 1V LÍNEA 2 (SOLO SUPERIORES)
-        console.log('🔧 Aplicando optimización específica para ZOCLO 1V_L2 (superiores)');
-        const zocloOptimization = calculateProfileOptimization('ZOCLO', quotes, 600, 'superior');
-        profile.piecesNeeded = zocloOptimization.piecesNeeded;
+          if (isNaN(width) || isNaN(height)) return;
 
-        console.log(`📊 Resultado optimización ZOCLO 1V_L2:`, {
-          longitudTotal: profile.totalLength,
-          piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
-          piezasOptimizadas: zocloOptimization.piecesNeeded,
-          sobrantes: zocloOptimization.remainders,
-          diferencia: zocloOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
-        });
-      } else if (profile.name === 'ZOCLO 2V_L2') {
-        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA ZOCLO 2V LÍNEA 2 (SOLO INFERIORES)
-        console.log('🔧 Aplicando optimización específica para ZOCLO 2V_L2 (inferiores)');
-        const zocloOptimization = calculateProfileOptimization('ZOCLO', quotes, 600, 'inferior');
-        profile.piecesNeeded = zocloOptimization.piecesNeeded;
+          // Determinar qué fórmulas usar según la línea
+          const line = quote.line.includes('2') ? 'L2' : 'L3';
+          const windowType = quote.type;
 
-        console.log(`📊 Resultado optimización ZOCLO 2V_L2:`, {
-          longitudTotal: profile.totalLength,
-          piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
-          piezasOptimizadas: zocloOptimization.piecesNeeded,
-          sobrantes: zocloOptimization.remainders,
-          diferencia: zocloOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
-        });
-      } else if (profile.name === 'CABEZAL_L2') {
-        // 🎯 OPTIMIZACIÓN ESPECÍFICA PARA CABEZAL LÍNEA 2 (SOLO SUPERIORES)
-        console.log('🔧 Aplicando optimización específica para CABEZAL_L2 (superiores)');
-        const cabezalOptimization = calculateProfileOptimization('ZOCLO', quotes, 600, 'superior');
-        profile.piecesNeeded = cabezalOptimization.piecesNeeded;
+          // Obtener la fórmula de ancho de zócalo
+          let zocloWidth: number;
+          let numPieces: number;
 
-        console.log(`📊 Resultado optimización CABEZAL_L2:`, {
-          longitudTotal: profile.totalLength,
-          piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
-          piezasOptimizadas: cabezalOptimization.piecesNeeded,
-          sobrantes: cabezalOptimization.remainders,
-          diferencia: cabezalOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600)
+          if (line === 'L3') {
+            if (windowType === 'Fija Corrediza' || windowType === 'Doble Corrediza') {
+              zocloWidth = 18;
+              numPieces = 2; // 2 superiores o 2 inferiores
+            } else if (windowType === '2 Fijos 2 Corredizos' || windowType === '4 Corredizas') {
+              zocloWidth = windowType === '2 Fijos 2 Corredizos' ? 33.5 : 34;
+              numPieces = 4; // 4 superiores o 4 inferiores
+            } else {
+              return;
+            }
+          } else { // L2
+            if (windowType === 'Fija Corrediza' || windowType === 'Doble Corrediza') {
+              zocloWidth = 16.2;
+              numPieces = 2; // 2 superiores o 2 inferiores
+            } else {
+              return;
+            }
+          }
+
+          const zocloLength = (width - zocloWidth) / numPieces;
+
+          // Agregar piezas si este tipo de zócalo está en esta ventana
+          if (quote.zocloConfig.upper === profile.name) {
+            // Agregar piezas superiores
+            for (let i = 0; i < numPieces; i++) {
+              zocloPieces.push({
+                length: zocloLength,
+                windowType: `${windowId} (Superior ${i + 1})`
+              });
+            }
+          }
+
+          if (quote.zocloConfig.lower === profile.name) {
+            // Agregar piezas inferiores
+            for (let i = 0; i < numPieces; i++) {
+              zocloPieces.push({
+                length: zocloLength,
+                windowType: `${windowId} (Inferior ${i + 1})`
+              });
+            }
+          }
         });
+
+        console.log(`🔧 Aplicando optimización específica para ${profile.name}`);
+        console.log(`   - Piezas individuales recolectadas: ${zocloPieces.length}`);
+
+        if (zocloPieces.length > 0) {
+          // Aplicar optimización sin pegar retazos
+          const zocloOptimization = optimizeCutting(zocloPieces, 600);
+          profile.piecesNeeded = zocloOptimization.piecesNeeded;
+
+          console.log(`📊 Resultado optimización ${profile.name}:`, {
+            longitudTotal: profile.totalLength,
+            piezasIndividuales: zocloPieces.length,
+            piezasCalculoSimple: Math.ceil(profile.totalLength / 600),
+            piezasOptimizadas: zocloOptimization.piecesNeeded,
+            sobrantes: zocloOptimization.remainders,
+            diferencia: zocloOptimization.piecesNeeded - Math.ceil(profile.totalLength / 600),
+            detalles: zocloPieces.map(p => `${p.length.toFixed(1)}cm - ${p.windowType}`),
+            nota: 'Optimizado sin pegar retazos - cada pieza requiere perfil completo o sobrante único'
+          });
+        } else {
+          // Fallback al cálculo simple si no se encuentran piezas
+          profile.piecesNeeded = Math.ceil(profile.totalLength / 600);
+          console.log(`⚠️ ${profile.name}: No se encontraron piezas individuales, usando cálculo simple`);
+        }
       } else {
         profile.piecesNeeded = Math.ceil(profile.totalLength / 600);
         console.log(`📏 Perfil ${profile.name}: usando cálculo simple (${profile.piecesNeeded} piezas)`);
@@ -554,8 +616,8 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
   };
 
   const calculateHardwareSummary = (
-    quotes: QuotedWindow[], 
-    standaloneItems: StandaloneHardwareItem[] = [], 
+    quotes: QuotedWindow[],
+    standaloneItems: StandaloneHardwareItem[] = [],
     hardwareData: Hardware[] = []
   ) => {
     const summary: { [key: string]: HardwareSummary } = {};
@@ -564,32 +626,36 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     quotes.forEach(quote => {
       if (quote.hardware && quote.hardware.length > 0) {
         quote.hardware.forEach(item => {
-          const key = item.name;
-          
+          // Usar el chargingMethod guardado o 'piece' por defecto para retrocompatibilidad
+          const chargingMethod = item.chargingMethod || 'piece';
+          const key = `${item.name}-${chargingMethod}`;
+
           if (!summary[key]) {
             summary[key] = {
               name: item.name,
               pieces: 0,
-              cost: 0
+              cost: 0,
+              chargingMethod: chargingMethod
             };
           }
 
           // Recalcular costo con IVA actual usando precio base de la base de datos
           const pieces = isNaN(Number(item.pieces)) ? 0 : Number(item.pieces);
-          
+
           // Buscar el herraje en la base de datos para obtener precio base
           const hardwareInDB = hardwareData.find(h => h.name === item.name);
           let cost = 0;
-          
+
           if (hardwareInDB && pieces > 0) {
+            const basePricePerPackage = parseFloat(hardwareInDB.pricePerPackage) || 0;
             const basePricePerPiece = parseFloat(hardwareInDB.pricePerPiece) || 0;
-            if (basePricePerPiece > 0) {
-              // Calcular costo con IVA de material fijo (16%)
+            if (basePricePerPackage > 0 || basePricePerPiece > 0) {
+              // Calcular costo con IVA de material fijo (16%) usando el método correcto
               const { total } = calculateHardwareCostWithIVA(
-                0, // No usamos precio por paquete para herrajes de ventanas
+                basePricePerPackage,
                 basePricePerPiece,
                 pieces,
-                'piece',
+                chargingMethod,
                 materialIvaPercentage
               );
               cost = total;
@@ -606,17 +672,43 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
           summary[key].cost += cost;
         });
       }
+
+      // Procesar vidrios de ventanas cotizadas
+      if (quote.glass && quote.glass.length > 0) {
+        quote.glass.forEach(item => {
+          // Usar el chargingMethod guardado o 'piece' por defecto para retrocompatibilidad
+          const chargingMethod = item.chargingMethod || 'piece';
+          const key = `${item.name}-${chargingMethod}`;
+
+          if (!summary[key]) {
+            summary[key] = {
+              name: item.name,
+              pieces: 0,
+              cost: 0,
+              chargingMethod: chargingMethod
+            };
+          }
+
+          const pieces = isNaN(Number(item.pieces)) ? 0 : Number(item.pieces);
+          const cost = isNaN(Number(item.cost)) ? 0 : Number(item.cost);
+
+          summary[key].pieces += pieces;
+          summary[key].cost += cost;
+        });
+      }
     });
 
     // Procesar elementos adicionales independientes
     standaloneItems.forEach(item => {
-      const key = item.name;
-      
+      // Crear una clave única que incluya el método de cobro para evitar mezclar unidades diferentes
+      const key = `${item.name}-${item.chargingMethod}`;
+
       if (!summary[key]) {
         summary[key] = {
           name: item.name,
           pieces: 0,
-          cost: 0
+          cost: 0,
+          chargingMethod: item.chargingMethod
         };
       }
 
@@ -626,9 +718,10 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         item.basePricePerPiece,
         item.quantity,
         item.chargingMethod,
-        materialIvaPercentage
+        materialIvaPercentage,
+        item.basePricePerM2
       );
-      
+
       summary[key].pieces += item.quantity;
       summary[key].cost += total;
     });
@@ -694,12 +787,24 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     setExtraCostsList(prev => prev.filter(cost => cost.id !== id));
   };
 
-  const handleRemoveAdditionalItem = (itemName: string) => {
-    const itemToRemove = standaloneHardwareItems.find(item => item.name === itemName);
+  const handleRemoveAdditionalItem = (itemName: string, chargingMethod?: 'package' | 'piece' | 'm2') => {
+    const itemToRemove = standaloneHardwareItems.find(item =>
+      item.name === itemName &&
+      (chargingMethod ? item.chargingMethod === chargingMethod : true)
+    );
     if (!itemToRemove) return;
 
-    if (confirm(`¿Estás seguro que deseas eliminar "${itemName}" (${itemToRemove.quantity} pz) del paquete?`)) {
-      const updatedItems = standaloneHardwareItems.filter(item => item.name !== itemName);
+    const unit = itemToRemove.chargingMethod === 'm2'
+      ? 'm²'
+      : itemToRemove.chargingMethod === 'package'
+      ? 'paquete'
+      : 'pz';
+
+    if (confirm(`¿Estás seguro que deseas eliminar "${itemName}" (${itemToRemove.quantity} ${unit}) del paquete?`)) {
+      const updatedItems = standaloneHardwareItems.filter(item =>
+        !(item.name === itemName &&
+          (chargingMethod ? item.chargingMethod === chargingMethod : true))
+      );
       setStandaloneHardwareItems(updatedItems);
 
       const savedHardware = localStorage.getItem('windowHardware');
@@ -718,31 +823,35 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
 
   const handleAddAdditionalItems = (items: SelectedItem[]) => {
     if (items.length === 0) return;
-    
+
     // Agregar elementos adicionales al estado independiente
     const newStandaloneItems = [...standaloneHardwareItems];
-    
+
     items.forEach(item => {
-      const existingIndex = newStandaloneItems.findIndex(existing => existing.name === item.name);
-      
+      // Buscar elemento existente comparando NOMBRE Y MÉTODO DE COBRO
+      const existingIndex = newStandaloneItems.findIndex(existing =>
+        existing.name === item.name && existing.chargingMethod === item.chargingMethod
+      );
+
       if (existingIndex >= 0) {
-        // Si el elemento ya existe, actualizar cantidad
+        // Si el elemento ya existe con el mismo método de cobro, actualizar cantidad
         newStandaloneItems[existingIndex].quantity += item.quantity;
       } else {
-        // Si es un elemento nuevo, agregarlo
+        // Si es un elemento nuevo o tiene diferente método de cobro, agregarlo como línea separada
         newStandaloneItems.push({
           name: item.name,
           quantity: item.quantity,
           chargingMethod: item.chargingMethod,
           basePricePerPackage: item.basePricePerPackage,
           basePricePerPiece: item.basePricePerPiece,
+          basePricePerM2: item.basePricePerM2,
           category: item.category
         });
       }
     });
-    
+
     setStandaloneHardwareItems(newStandaloneItems);
-    
+
     setShowAdditionalItemsModal(false);
     alert('¡Elementos adicionales agregados al paquete cotizado!');
   };
@@ -767,7 +876,8 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
           item.basePricePerPiece,
           item.quantity,
           item.chargingMethod,
-          materialIvaPercentage
+          materialIvaPercentage,
+          item.basePricePerM2
         );
         return total;
       })()
@@ -827,12 +937,15 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         updatedHardware = window.hardware.map(item => {
           const hardwareInDB = hardwareData.find(h => h.name === item.name);
           if (hardwareInDB) {
+            // Usar el chargingMethod guardado o 'piece' por defecto
+            const chargingMethod = item.chargingMethod || 'piece';
+            const basePricePerPackage = parseFloat(hardwareInDB.pricePerPackage) || 0;
             const basePricePerPiece = parseFloat(hardwareInDB.pricePerPiece) || 0;
             const { total } = calculateHardwareCostWithIVA(
-              0,
+              basePricePerPackage,
               basePricePerPiece,
               item.pieces,
-              'piece',
+              chargingMethod,
               materialIvaPercentage
             );
             return {
@@ -844,13 +957,18 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         });
       }
 
+      // Procesar vidrios (no necesitan recalcular precios, solo mantener el costo)
+      let updatedGlass = window.glass;
+
       const newTotalCost = updatedProfiles.reduce((sum, p) => sum + p.cost, 0) +
-                          (updatedHardware?.reduce((sum, h) => sum + h.cost, 0) || 0);
+                          (updatedHardware?.reduce((sum, h) => sum + h.cost, 0) || 0) +
+                          (updatedGlass?.reduce((sum, g) => sum + g.cost, 0) || 0);
 
       return {
         ...window,
         profiles: updatedProfiles,
         hardware: updatedHardware,
+        glass: updatedGlass,
         totalCost: newTotalCost
       };
     });
@@ -918,18 +1036,24 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
 
   // Group profiles by name for totals
   const profileTotals = profileSummary.reduce((acc, profile) => {
-    if (!acc[profile.name]) {
-      acc[profile.name] = {
+    // Para zócalos y cabezales, NO mostrar la posición (ya están consolidados)
+    const isZoclo = profile.name.includes('ZOCLO') || profile.name.includes('CABEZAL');
+    const displayName = (!isZoclo && profile.zocloPosition)
+      ? `${profile.name} (${profile.zocloPosition === 'superior' ? 'Superior' : 'Inferior'})`
+      : profile.name;
+
+    if (!acc[displayName]) {
+      acc[displayName] = {
         totalMeters: 0,
         totalPieces: 0,
         fractionCost: 0,
         grossCost: 0
       };
     }
-    acc[profile.name].totalMeters += profile.totalMeters;
-    acc[profile.name].totalPieces += profile.piecesNeeded;
-    acc[profile.name].fractionCost += profile.fractionCost;
-    acc[profile.name].grossCost += profile.grossCost;
+    acc[displayName].totalMeters += profile.totalMeters;
+    acc[displayName].totalPieces += profile.piecesNeeded;
+    acc[displayName].fractionCost += profile.fractionCost;
+    acc[displayName].grossCost += profile.grossCost;
     return acc;
   }, {} as Record<string, { totalMeters: number; totalPieces: number; fractionCost: number; grossCost: number }>);
 
@@ -1078,14 +1202,36 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
                       
                       {window.hardware && window.hardware.length > 0 && (
                         <>
-                          <h4 className="font-medium text-gray-700 mt-3 mb-2">Componentes Adicionales:</h4>
+                          <h4 className="font-medium text-gray-700 mt-3 mb-2">Herrajes:</h4>
                           <div className="space-y-1">
-                            {window.hardware.map((item, idx) => (
-                              <div key={idx} className="flex justify-between text-sm">
-                                <span>{item.name}</span>
-                                <span>{item.pieces} pz - ${item.cost.toFixed(2)}</span>
-                              </div>
-                            ))}
+                            {window.hardware.map((item, idx) => {
+                              const chargingMethod = item.chargingMethod || 'piece';
+                              const unit = chargingMethod === 'package' ? (item.pieces !== 1 ? 'paquetes' : 'paquete') : 'pz';
+                              return (
+                                <div key={idx} className="flex justify-between text-sm">
+                                  <span>{item.name}</span>
+                                  <span>{item.pieces} {unit} - ${item.cost.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+
+                      {window.glass && window.glass.length > 0 && (
+                        <>
+                          <h4 className="font-medium text-gray-700 mt-3 mb-2">Vidrios:</h4>
+                          <div className="space-y-1">
+                            {window.glass.map((item, idx) => {
+                              const chargingMethod = item.chargingMethod || 'piece';
+                              const unit = chargingMethod === 'm2' ? 'm²' : 'pz';
+                              return (
+                                <div key={idx} className="flex justify-between text-sm">
+                                  <span>{item.name}</span>
+                                  <span>{item.pieces} {unit} - ${item.cost.toFixed(2)}</span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </>
                       )}
@@ -1137,13 +1283,24 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
                               <div key={index} className="flex justify-between items-center bg-blue-900 rounded-lg p-3">
                                 <div>
                                   <p className="font-medium text-white">{item.name}</p>
-                                  <p className="text-sm text-blue-200">{item.pieces} pieza{item.pieces !== 1 ? 's' : ''}</p>
+                                  <p className="text-sm text-blue-200">
+                                    {item.pieces} {
+                                      item.chargingMethod === 'm2'
+                                        ? 'm²'
+                                        : item.chargingMethod === 'package'
+                                        ? (item.pieces !== 1 ? 'paquetes' : 'paquete')
+                                        : (item.pieces !== 1 ? 'piezas' : 'pieza')
+                                    }
+                                  </p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <p className="font-bold text-green-300">${item.cost.toFixed(2)}</p>
-                                  {standaloneHardwareItems.find(standalone => standalone.name === item.name) && (
+                                  {standaloneHardwareItems.find(standalone =>
+                                    standalone.name === item.name &&
+                                    (item.chargingMethod ? standalone.chargingMethod === item.chargingMethod : true)
+                                  ) && (
                                     <button
-                                      onClick={() => handleRemoveAdditionalItem(item.name)}
+                                      onClick={() => handleRemoveAdditionalItem(item.name, item.chargingMethod)}
                                       className="text-red-400 hover:text-red-300 p-1"
                                       title="Eliminar componente"
                                     >
