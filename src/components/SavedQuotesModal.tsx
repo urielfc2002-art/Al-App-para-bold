@@ -130,7 +130,7 @@ export function SavedQuotesModal({ onClose, onLoadQuote }: SavedQuotesModalProps
                 <p className="text-gray-500">No hay cotizaciones guardadas</p>
               </div>
             ) : (
-              savedQuotes.map((quote) => (
+              savedQuotes.slice().reverse().map((quote) => (
                 <div
                   key={quote.id}
                   className="p-6 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors"

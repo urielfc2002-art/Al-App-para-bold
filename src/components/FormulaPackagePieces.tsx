@@ -3,12 +3,14 @@ import { ArrowLeft, Trash2, ChevronLeft, ChevronRight, RotateCcw, Save, FolderOp
 import { SaveFormulaPiecePackageModal } from './SaveFormulaPiecePackageModal';
 import { SavedFormulaPiecePackagesModal } from './SavedFormulaPiecePackagesModal';
 import { FormulaCuttingWorkflow } from './FormulaCuttingWorkflow';
+import { normalizeProfileName } from '../utils/profileUtils';
 
 interface ProfilePiece {
   type: string;
   measure: string;
   pieces: number;
   windowType: string;
+  insertionOrder?: number;
 }
 
 interface FormulaPackagePiecesProps {
@@ -30,12 +32,13 @@ export function FormulaPackagePieces({ onBack }: FormulaPackagePiecesProps) {
     localStorage.setItem('formulaGeneratorPackagePieces', JSON.stringify(pieces));
   }, [pieces]);
 
-  // Agrupar piezas por tipo
+  // Agrupar piezas por tipo usando normalización
   const groupedPieces = pieces.reduce((acc, piece) => {
-    if (!acc[piece.type]) {
-      acc[piece.type] = [];
+    const normalizedType = normalizeProfileName(piece.type);
+    if (!acc[normalizedType]) {
+      acc[normalizedType] = [];
     }
-    acc[piece.type].push(piece);
+    acc[normalizedType].push(piece);
     return acc;
   }, {} as Record<string, ProfilePiece[]>);
 
@@ -44,8 +47,27 @@ export function FormulaPackagePieces({ onBack }: FormulaPackagePiecesProps) {
     group.sort((a, b) => parseFloat(b.measure) - parseFloat(a.measure));
   });
 
-  // Obtener todos los tipos de perfiles únicos y ordenarlos alfabéticamente
-  const profileTypes = Object.keys(groupedPieces).sort();
+  // Obtener todos los tipos de perfiles únicos y ordenarlos por orden de inserción
+  const profileTypes = Object.keys(groupedPieces).sort((a, b) => {
+    const groupA = groupedPieces[a] || [];
+    const groupB = groupedPieces[b] || [];
+
+    // Encontrar el insertionOrder mínimo de cada grupo
+    const minOrderA = Math.min(...groupA.map(piece => piece.insertionOrder ?? Infinity));
+    const minOrderB = Math.min(...groupB.map(piece => piece.insertionOrder ?? Infinity));
+
+    // Si ambos tienen insertionOrder, ordenar por ese valor
+    if (minOrderA !== Infinity && minOrderB !== Infinity) {
+      return minOrderA - minOrderB;
+    }
+
+    // Si solo uno tiene insertionOrder, ese va primero
+    if (minOrderA !== Infinity) return -1;
+    if (minOrderB !== Infinity) return 1;
+
+    // Si ninguno tiene insertionOrder, usar orden alfabético como fallback
+    return a.localeCompare(b);
+  });
 
   const handleClearAll = () => {
     if (confirm('¿Estás seguro que deseas eliminar todas las piezas de fórmulas? Esta acción no se puede deshacer.')) {
@@ -73,10 +95,9 @@ export function FormulaPackagePieces({ onBack }: FormulaPackagePiecesProps) {
   };
 
   const handleLoadPackage = (packageData: any) => {
-    localStorage.setItem('formulaGeneratorPackagePieces', JSON.stringify(packageData.pieces));
+    setPieces(packageData.pieces);
     setShowLoadModal(false);
     alert(`Paquete "${packageData.name}" cargado exitosamente!`);
-    window.location.reload();
   };
 
   const handleStartWorking = () => {

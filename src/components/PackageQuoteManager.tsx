@@ -11,11 +11,15 @@ import { usePriceUpdates } from '../hooks/usePriceUpdates';
 interface StandaloneHardwareItem {
   name: string;
   quantity: number;
-  chargingMethod: 'package' | 'piece' | 'm2';
+  chargingMethod: 'package' | 'piece' | 'm2' | 'per6m' | 'perMeter';
   basePricePerPackage: number;
   basePricePerPiece: number;
   basePricePerM2?: number;
-  category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes' | 'vidrios';
+  basePricePer6m?: number;
+  basePricePerMeter?: number;
+  selectedColor?: string;
+  category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes' | 'vidrios' | 'perfiles';
+  type?: 'hardware' | 'glass' | 'profile';
 }
 
 interface QuotedWindow {
@@ -63,7 +67,7 @@ interface HardwareSummary {
   name: string;
   pieces: number;
   cost: number;
-  chargingMethod?: 'package' | 'piece' | 'm2';
+  chargingMethod?: 'package' | 'piece' | 'm2' | 'per6m' | 'perMeter';
 }
 
 interface ExtraCost {
@@ -100,21 +104,26 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showSavedQuotesModal, setShowSavedQuotesModal] = useState(false);
   const [showAdditionalItemsModal, setShowAdditionalItemsModal] = useState(false);
-  const [profitPercentage, setProfitPercentage] = useState<number>(0);
-  const [extraCostsList, setExtraCostsList] = useState<ExtraCost[]>([]);
+  const [profitPercentage, setProfitPercentage] = useSyncedState<number>('packageProfitPercentage', 0);
+  const [extraCostsList, setExtraCostsList] = useSyncedState<ExtraCost[]>('packageExtraCosts', []);
   const [newExtraCostName, setNewExtraCostName] = useState('');
   const [newExtraCostAmount, setNewExtraCostAmount] = useState<number>(0);
   const [materialIvaPercentage, setMaterialIvaPercentage] = useSyncedState<number>('materialIvaPercentage', 16);
   const [userIvaPercentage, setUserIvaPercentage] = useSyncedState<number>('userIvaPercentage', 0);
   const [standaloneHardwareItems, setStandaloneHardwareItems] = useSyncedState<StandaloneHardwareItem[]>('standaloneHardwareItems', []);
   const [selectedCostMethod, setSelectedCostMethod] = useSyncedState<'fraction' | 'gross'>('selectedCostMethod', 'gross');
+  const [currentQuoteId, setCurrentQuoteId] = useSyncedState<string | null>('currentWindowPackageQuoteId', null);
+  const [currentQuoteName, setCurrentQuoteName] = useSyncedState<string | null>('currentWindowPackageQuoteName', null);
   const [lastPriceUpdate, setLastPriceUpdate] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [priceUpdateNotification, setPriceUpdateNotification] = useState<string | null>(null);
 
   const { priceData, refreshPriceData } = usePriceUpdates();
 
+  // 🔧 CARGA INICIAL DE DATOS - SOLO SE EJECUTA UNA VEZ AL MONTAR EL COMPONENTE
   useEffect(() => {
+    console.log('📂 Cargando datos iniciales desde localStorage...');
+
     // Cargar perfiles de la base de datos
     let currentProfiles: Profile[] = [];
     let currentHardware: Hardware[] = [];
@@ -123,6 +132,7 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
       try {
         currentProfiles = JSON.parse(savedProfiles);
         setProfiles(currentProfiles);
+        console.log('✅ Perfiles cargados:', currentProfiles.length);
       } catch (error) {
         console.error('Error loading profiles:', error);
         setProfiles([]);
@@ -134,6 +144,7 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     if (savedHardware) {
       try {
         currentHardware = JSON.parse(savedHardware);
+        console.log('✅ Herrajes cargados:', currentHardware.length);
       } catch (error) {
         console.error('Error loading hardware:', error);
       }
@@ -144,32 +155,90 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     if (savedQuotes) {
       try {
         const quotes = JSON.parse(savedQuotes);
-        
+        console.log('📦 Ventanas encontradas en localStorage:', quotes.length);
+
         // Sanitizar datos numéricos para prevenir errores de toFixed
-        const sanitizedQuotes = quotes.map((quote: QuotedWindow) => ({
-          ...quote,
-          totalCost: isNaN(Number(quote.totalCost)) ? 0 : Number(quote.totalCost),
-          profiles: quote.profiles?.map(profile => ({
-            ...profile,
-            totalLength: isNaN(Number(profile.totalLength)) ? 0 : Number(profile.totalLength),
-            cost: isNaN(Number(profile.cost)) ? 0 : Number(profile.cost)
-          })) || [],
-          hardware: quote.hardware?.map(item => ({
-            ...item,
-            pieces: isNaN(Number(item.pieces)) ? 0 : Number(item.pieces),
-            cost: isNaN(Number(item.cost)) ? 0 : Number(item.cost)
-          })) || []
-        }));
-        
+        const sanitizedQuotes = quotes.map((quote: QuotedWindow) => {
+          console.log(`🔍 Sanitizando ventana: ${quote.id}`, {
+            hasProfiles: !!quote.profiles,
+            hasHardware: !!quote.hardware,
+            hasGlass: !!quote.glass,
+            profilesCount: quote.profiles?.length || 0,
+            hardwareCount: quote.hardware?.length || 0,
+            glassCount: quote.glass?.length || 0
+          });
+
+          return {
+            ...quote,
+            totalCost: isNaN(Number(quote.totalCost)) ? 0 : Number(quote.totalCost),
+            profiles: quote.profiles?.map(profile => ({
+              ...profile,
+              totalLength: isNaN(Number(profile.totalLength)) ? 0 : Number(profile.totalLength),
+              cost: isNaN(Number(profile.cost)) ? 0 : Number(profile.cost)
+            })) || [],
+            hardware: quote.hardware?.map(item => ({
+              ...item,
+              pieces: isNaN(Number(item.pieces)) ? 0 : Number(item.pieces),
+              cost: isNaN(Number(item.cost)) ? 0 : Number(item.cost),
+              chargingMethod: item.chargingMethod || 'piece'
+            })) || [],
+            glass: quote.glass?.map(item => ({
+              ...item,
+              pieces: isNaN(Number(item.pieces)) ? 0 : Number(item.pieces),
+              cost: isNaN(Number(item.cost)) ? 0 : Number(item.cost),
+              chargingMethod: item.chargingMethod || 'piece'
+            })) || []
+          };
+        });
+
+        console.log('✅ Ventanas sanitizadas correctamente');
         setQuotedWindows(sanitizedQuotes);
         calculateProfileSummary(sanitizedQuotes, currentProfiles);
         calculateHardwareSummary(sanitizedQuotes, standaloneHardwareItems, currentHardware);
       } catch (error) {
-        console.error('Error loading quoted windows:', error);
+        console.error('❌ Error loading quoted windows:', error);
         setQuotedWindows([]);
         setProfileSummary([]);
         setHardwareSummary([]);
       }
+    } else {
+      console.log('ℹ️ No hay ventanas guardadas en localStorage');
+    }
+  }, []); // ✅ Sin dependencias - solo se ejecuta al montar
+
+  // 🔄 RECALCULAR RESÚMENES CUANDO CAMBIAN LAS VENTANAS COTIZADAS
+  useEffect(() => {
+    if (quotedWindows.length > 0 && profiles.length > 0) {
+      console.log('🔄 Recalculando resúmenes por cambio en ventanas cotizadas...');
+      calculateProfileSummary(quotedWindows, profiles);
+
+      const savedHardware = localStorage.getItem('windowHardware');
+      let currentHardware: Hardware[] = [];
+      if (savedHardware) {
+        try {
+          currentHardware = JSON.parse(savedHardware);
+        } catch (error) {
+          console.error('Error loading hardware:', error);
+        }
+      }
+      calculateHardwareSummary(quotedWindows, standaloneHardwareItems, currentHardware);
+    }
+  }, [quotedWindows, profiles]);
+
+  // 🔄 RECALCULAR RESUMEN DE HERRAJES CUANDO CAMBIAN LOS COMPONENTES ADICIONALES
+  useEffect(() => {
+    if (standaloneHardwareItems.length > 0 || quotedWindows.length > 0) {
+      console.log('🔄 Recalculando resumen de herrajes por cambio en componentes adicionales...');
+      const savedHardware = localStorage.getItem('windowHardware');
+      let currentHardware: Hardware[] = [];
+      if (savedHardware) {
+        try {
+          currentHardware = JSON.parse(savedHardware);
+        } catch (error) {
+          console.error('Error loading hardware:', error);
+        }
+      }
+      calculateHardwareSummary(quotedWindows, standaloneHardwareItems, currentHardware);
     }
   }, [standaloneHardwareItems]);
 
@@ -202,7 +271,7 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         // Actualizar componentes adicionales con nuevos precios
         if (standaloneHardwareItems.length > 0) {
           console.log('🔍 Actualizando precios de componentes adicionales...');
-          const updatedStandaloneItems = updateStandaloneItemPrices(standaloneHardwareItems, priceData.hardware, priceData.glass);
+          const updatedStandaloneItems = updateStandaloneItemPrices(standaloneHardwareItems, priceData.hardware, priceData.glass, priceData.profiles);
 
           // Siempre actualizar si hay cambios
           const hasChanges = updatedStandaloneItems.some((item, index) => {
@@ -238,7 +307,8 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
   const updateStandaloneItemPrices = (
     items: StandaloneHardwareItem[],
     hardwareData: Hardware[],
-    glassData: any[]
+    glassData: any[],
+    profilesData?: Profile[]
   ): StandaloneHardwareItem[] => {
     if (items.length === 0) {
       console.log('ℹ️ No hay componentes adicionales para actualizar');
@@ -249,6 +319,38 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     let hasChanges = false;
     const updatedItems = items.map(item => {
       console.log(`🔍 Verificando "${item.name}"...`);
+
+      // Manejar perfiles
+      if (item.type === 'profile' && profilesData && item.selectedColor) {
+        const profileInDB = profilesData.find(p => p.name === item.name);
+
+        if (profileInDB && profileInDB.colors[item.selectedColor]) {
+          const newBasePricePer6m = parseFloat(profileInDB.colors[item.selectedColor].price6m) || 0;
+          const newBasePricePerMeter = parseFloat(profileInDB.colors[item.selectedColor].pricePerM) || 0;
+
+          console.log(`   Precios de perfil en DB: 6m=$${newBasePricePer6m}, metro=$${newBasePricePerMeter}`);
+          console.log(`   Precios actuales: 6m=$${item.basePricePer6m || 0}, metro=$${item.basePricePerMeter || 0}`);
+
+          if (
+            newBasePricePer6m !== (item.basePricePer6m || 0) ||
+            newBasePricePerMeter !== (item.basePricePerMeter || 0)
+          ) {
+            hasChanges = true;
+            console.log(`💰 Actualizando precio base de perfil "${item.name}":`);
+            console.log(`   6m: $${item.basePricePer6m || 0} → $${newBasePricePer6m}`);
+            console.log(`   Metro: $${item.basePricePerMeter || 0} → $${newBasePricePerMeter}`);
+
+            return {
+              ...item,
+              basePricePer6m: newBasePricePer6m,
+              basePricePerMeter: newBasePricePerMeter
+            };
+          } else {
+            console.log(`   ✓ Sin cambios para perfil "${item.name}"`);
+          }
+          return item;
+        }
+      }
 
       const hardwareInDB = hardwareData.find(h => h.name === item.name);
 
@@ -712,15 +814,28 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         };
       }
 
-      // Calcular costo con IVA de material fijo (16%) usando precios base almacenados
-      const { total } = calculateHardwareCostWithIVA(
-        item.basePricePerPackage,
-        item.basePricePerPiece,
-        item.quantity,
-        item.chargingMethod,
-        materialIvaPercentage,
-        item.basePricePerM2
-      );
+      let total = 0;
+
+      // Manejar perfiles con lógica específica
+      if (item.type === 'profile' && (item.chargingMethod === 'per6m' || item.chargingMethod === 'perMeter')) {
+        const basePrice = item.chargingMethod === 'per6m'
+          ? (item.basePricePer6m || 0)
+          : (item.basePricePerMeter || 0);
+
+        // Calcular costo con IVA de material fijo
+        total = basePrice * item.quantity * (1 + materialIvaPercentage / 100);
+      } else {
+        // Para hardware, vidrios y otros items, usar la función existente
+        const result = calculateHardwareCostWithIVA(
+          item.basePricePerPackage,
+          item.basePricePerPiece,
+          item.quantity,
+          item.chargingMethod as 'package' | 'piece' | 'm2',
+          materialIvaPercentage,
+          item.basePricePerM2
+        );
+        total = result.total;
+      }
 
       summary[key].pieces += item.quantity;
       summary[key].cost += total;
@@ -754,7 +869,11 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
       setQuotedWindows([]);
       setProfileSummary([]);
       setHardwareSummary([]);
+      setProfitPercentage(0);
       setExtraCostsList([]);
+      setUserIvaPercentage(0);
+      setCurrentQuoteId(null);
+      setCurrentQuoteName(null);
     }
   };
 
@@ -845,7 +964,11 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
           basePricePerPackage: item.basePricePerPackage,
           basePricePerPiece: item.basePricePerPiece,
           basePricePerM2: item.basePricePerM2,
-          category: item.category
+          basePricePer6m: item.basePricePer6m,
+          basePricePerMeter: item.basePricePerMeter,
+          selectedColor: item.selectedColor,
+          category: item.category,
+          type: item.type
         });
       }
     });
@@ -865,32 +988,67 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
     const totalWithProfit = (totalGrossCost + totalHardwareCost) * (1 + profitPercentage / 100) + totalExtraCosts;
     const ivaAmount = totalWithProfit * (userIvaPercentage / 100);
     const finalPriceWithIVA = totalWithProfit + ivaAmount;
-    
-    // Preparar los herrajes para incluirlos en el paquete
-    const additionalHardwareItems = standaloneHardwareItems.map(item => ({
-      name: item.name,
-      pieces: item.quantity,
-      cost: (() => {
-        const { total } = calculateHardwareCostWithIVA(
-          item.basePricePerPackage,
-          item.basePricePerPiece,
-          item.quantity,
-          item.chargingMethod,
-          materialIvaPercentage,
-          item.basePricePerM2
-        );
-        return total;
-      })()
-    }));
 
+    const savedQuotes = JSON.parse(localStorage.getItem('savedQuotedPackages') || '[]');
+
+    // Si estamos editando una cotización existente
+    if (currentQuoteId) {
+      const existingQuoteIndex = savedQuotes.findIndex((q: any) => q.id === currentQuoteId);
+
+      if (existingQuoteIndex !== -1) {
+        // Mantener la fecha original de la cotización
+        const originalDate = savedQuotes[existingQuoteIndex].date;
+
+        const updatedQuoteData = {
+          id: currentQuoteId,
+          name,
+          date: originalDate,
+          totalAmount: finalPriceWithIVA,
+          windowsCount: quotedWindows.length,
+          profilesUsed: [...new Set(profileSummary.map(p => p.name))],
+          hardwareUsed: [...new Set(hardwareSummary.map(h => h.name))],
+          quotedWindows,
+          profileSummary,
+          hardwareSummary,
+          extraCostsList,
+          standaloneHardwareItems,
+          totals: {
+            fractionCost: totalFractionCost,
+            grossCost: totalGrossCost + totalHardwareCost,
+            hardwareCost: totalHardwareCost,
+            profitPercentage: profitPercentage,
+            finalPrice: totalWithProfit,
+            extraCosts: totalExtraCosts,
+            materialIvaPercentage: materialIvaPercentage,
+            userIvaPercentage: userIvaPercentage,
+            ivaAmount: ivaAmount,
+            finalPriceWithIVA: finalPriceWithIVA
+          }
+        };
+
+        // Reemplazar la cotización existente
+        savedQuotes[existingQuoteIndex] = updatedQuoteData;
+        localStorage.setItem('savedQuotedPackages', JSON.stringify(savedQuotes));
+
+        // Actualizar el nombre si cambió
+        setCurrentQuoteName(name);
+
+        setShowSaveModal(false);
+        alert('¡Cotización actualizada exitosamente!');
+        return;
+      }
+    }
+
+    // Si es una cotización nueva
+    const newQuoteId = crypto.randomUUID();
     const quoteData = {
-      id: crypto.randomUUID(),
+      id: newQuoteId,
       name,
       date: new Date().toISOString(),
-      totalAmount: finalPriceWithIVA, // Usar precio final con IVA
+      totalAmount: finalPriceWithIVA,
       windowsCount: quotedWindows.length,
-      profilesUsed: [...new Set(profileSummary.map(p => p.name))], // Perfiles únicos
-      hardwareUsed: [...new Set(hardwareSummary.map(h => h.name))], // Herrajes únicos
+      profilesUsed: [...new Set(profileSummary.map(p => p.name))],
+      hardwareUsed: [...new Set(hardwareSummary.map(h => h.name))],
       quotedWindows,
       profileSummary,
       hardwareSummary,
@@ -910,10 +1068,13 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
       }
     };
 
-    const savedQuotes = JSON.parse(localStorage.getItem('savedQuotedPackages') || '[]');
     savedQuotes.push(quoteData);
     localStorage.setItem('savedQuotedPackages', JSON.stringify(savedQuotes));
-    
+
+    // Actualizar los estados para que esta cotización sea la actual
+    setCurrentQuoteId(newQuoteId);
+    setCurrentQuoteName(name);
+
     setShowSaveModal(false);
     alert('¡Cotización guardada exitosamente!');
   };
@@ -1007,6 +1168,10 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
       // Compatibilidad con cotizaciones antiguas
       setUserIvaPercentage(quote.totals.ivaPercentage);
     }
+
+    // Guardar el ID y nombre de la cotización para poder actualizarla después
+    setCurrentQuoteId(quote.id);
+    setCurrentQuoteName(quote.name);
 
     setShowSavedQuotesModal(false);
     alert(`✅ Cotización "${quote.name}" cargada exitosamente!\n\n💡 Los precios han sido actualizados con los valores actuales de la base de datos.`);
@@ -1104,9 +1269,12 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
             <button
               onClick={() => setShowSaveModal(true)}
               className="bg-green-500 text-white px-2 py-1 rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1 text-sm"
+              title={currentQuoteName ? `Actualizar: ${currentQuoteName}` : 'Guardar cotización nueva'}
             >
               <Save size={16} />
-              <span className="hidden sm:inline">Guardar</span>
+              <span className="hidden sm:inline">
+                {currentQuoteName ? 'Actualizar' : 'Guardar'}
+              </span>
               <span className="sm:hidden">G</span>
             </button>
           )}
@@ -1289,6 +1457,10 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
                                         ? 'm²'
                                         : item.chargingMethod === 'package'
                                         ? (item.pieces !== 1 ? 'paquetes' : 'paquete')
+                                        : item.chargingMethod === 'per6m'
+                                        ? (item.pieces !== 1 ? 'piezas de 6m' : 'pieza de 6m')
+                                        : item.chargingMethod === 'perMeter'
+                                        ? (item.pieces !== 1 ? 'metros' : 'metro')
                                         : (item.pieces !== 1 ? 'piezas' : 'pieza')
                                     }
                                   </p>
@@ -1512,6 +1684,7 @@ export function PackageQuoteManager({ onBack }: PackageQuoteManagerProps) {
         <SaveQuoteModal
           onClose={() => setShowSaveModal(false)}
           onSave={handleSaveQuote}
+          initialName={currentQuoteName || undefined}
         />
       )}
 

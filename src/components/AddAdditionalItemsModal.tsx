@@ -16,16 +16,29 @@ interface Glass {
   pricePerM2: string;
 }
 
+interface Profile {
+  name: string;
+  colors: {
+    [key: string]: {
+      price6m: string;
+      pricePerM: string;
+    };
+  };
+}
+
 export interface SelectedItem {
   id: string;
   name: string;
   quantity: number;
-  chargingMethod: 'package' | 'piece' | 'm2';
+  chargingMethod: 'package' | 'piece' | 'm2' | 'per6m' | 'perMeter';
   basePricePerPackage: number;
   basePricePerPiece: number;
   basePricePerM2?: number;
-  category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes' | 'vidrios';
-  type: 'hardware' | 'glass';
+  basePricePer6m?: number;
+  basePricePerMeter?: number;
+  selectedColor?: string;
+  category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes' | 'vidrios' | 'perfiles';
+  type: 'hardware' | 'glass' | 'profile';
 }
 
 interface AddAdditionalItemsModalProps {
@@ -33,13 +46,18 @@ interface AddAdditionalItemsModalProps {
   onSaveAdditionalItems: (items: SelectedItem[]) => void;
 }
 
+type AllItemType =
+  | (Hardware & { category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes'; type: 'hardware' })
+  | (Glass & { category: 'vidrios'; type: 'glass' })
+  | (Profile & { category: 'perfiles'; type: 'profile' });
+
 export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddAdditionalItemsModalProps) {
-  const [allItems, setAllItems] = useState<((Hardware & { category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes'; type: 'hardware' }) | (Glass & { category: 'vidrios'; type: 'glass' }))[]>([]);
+  const [allItems, setAllItems] = useState<AllItemType[]>([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [localQuantitiesInput, setLocalQuantitiesInput] = useState<{ [key: string]: string }>({});
   const [showOnlySelected, setShowOnlySelected] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<((Hardware & { category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes'; type: 'hardware' }) | (Glass & { category: 'vidrios'; type: 'glass' }))[]>([]);
+  const [searchResults, setSearchResults] = useState<AllItemType[]>([]);
   const [showResults, setShowResults] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchResultsRef = useRef<HTMLDivElement>(null);
@@ -117,20 +135,20 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
     setLocalQuantitiesInput(newLocalQuantities);
   }, [selectedItems]);
 
-  // Load and categorize all hardware and glass items
+  // Load and categorize all hardware, glass, and profile items
   useEffect(() => {
     const loadAllItems = () => {
-      const allCombinedItems: ((Hardware & { category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes'; type: 'hardware' }) | (Glass & { category: 'vidrios'; type: 'glass' }))[] = [];
-      
+      const allCombinedItems: AllItemType[] = [];
+
       // Load hardware items
       const savedHardware = localStorage.getItem('windowHardware');
       if (savedHardware) {
         try {
           const parsedHardware = JSON.parse(savedHardware);
-          
+
           const categorizedHardware = parsedHardware.map((item: Hardware) => {
             let category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes';
-            
+
             if (item.name.includes('TORNILLO') || item.name.includes('PIJA')) {
               category = 'tornillos';
             } else if (item.name.includes('FELPA')) {
@@ -140,34 +158,52 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
             } else {
               category = 'herrajes';
             }
-            
+
             return { ...item, category, type: 'hardware' as const };
           });
-          
+
           allCombinedItems.push(...categorizedHardware);
         } catch (error) {
           console.error('Error loading hardware:', error);
         }
       }
-      
+
       // Load glass items
       const savedGlass = localStorage.getItem('windowGlass');
       if (savedGlass) {
         try {
           const parsedGlass = JSON.parse(savedGlass);
-          
+
           const categorizedGlass = parsedGlass.map((item: Glass) => ({
             ...item,
             category: 'vidrios' as const,
             type: 'glass' as const
           }));
-          
+
           allCombinedItems.push(...categorizedGlass);
         } catch (error) {
           console.error('Error loading glass:', error);
         }
       }
-      
+
+      // Load profile items
+      const savedProfiles = localStorage.getItem('windowProfiles');
+      if (savedProfiles) {
+        try {
+          const parsedProfiles = JSON.parse(savedProfiles);
+
+          const categorizedProfiles = parsedProfiles.map((item: Profile) => ({
+            ...item,
+            category: 'perfiles' as const,
+            type: 'profile' as const
+          }));
+
+          allCombinedItems.push(...categorizedProfiles);
+        } catch (error) {
+          console.error('Error loading profiles:', error);
+        }
+      }
+
       setAllItems(allCombinedItems);
     };
 
@@ -212,13 +248,13 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
     };
   }, []);
 
-  const handleAddItem = (item: (Hardware & { category: 'tornillos' | 'felpas' | 'viniles' | 'herrajes'; type: 'hardware' }) | (Glass & { category: 'vidrios'; type: 'glass' })) => {
+  const handleAddItem = (item: AllItemType) => {
     let newItem: SelectedItem;
-    
+
     if (item.type === 'hardware') {
       // Handle hardware items
       const pricesWithIVA = getHardwarePriceWithIVA(item.name, [item], materialIvaPercentage);
-      
+
       // Determine default charging method based on available prices
       let defaultChargingMethod: 'package' | 'piece' = 'piece';
       if (pricesWithIVA.basePricePerPackage > 0 && pricesWithIVA.basePricePerPiece === 0) {
@@ -227,7 +263,7 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
         // If both prices are available, prefer package
         defaultChargingMethod = 'package';
       }
-      
+
       newItem = {
         id: crypto.randomUUID(),
         name: item.name,
@@ -238,10 +274,10 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
         category: item.category,
         type: 'hardware'
       };
-    } else {
+    } else if (item.type === 'glass') {
       // Handle glass items - usar precios BASE (sin IVA)
       const basePrices = getGlassBasePrices(item.name, [item as Glass]);
-      
+
       // Determine default charging method based on available prices
       let defaultChargingMethod: 'piece' | 'm2' = 'piece';
       if (basePrices.pricePerPiece > 0 && basePrices.pricePerM2 === 0) {
@@ -252,17 +288,63 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
         // If both prices are available, prefer m2
         defaultChargingMethod = 'm2';
       }
-      
+
       newItem = {
         id: crypto.randomUUID(),
         name: item.name,
         quantity: 0,
         chargingMethod: defaultChargingMethod,
-        basePricePerPackage: 0, // Los vidrios no tienen precio por paquete
-        basePricePerPiece: basePrices.pricePerPiece, // Precio base SIN IVA
-        basePricePerM2: basePrices.pricePerM2, // Precio base SIN IVA
+        basePricePerPackage: 0,
+        basePricePerPiece: basePrices.pricePerPiece,
+        basePricePerM2: basePrices.pricePerM2,
         category: 'vidrios',
         type: 'glass'
+      };
+    } else {
+      // Handle profile items
+      const profileItem = item as Profile & { category: 'perfiles'; type: 'profile' };
+
+      // Get the first available color with prices
+      const colors = Object.keys(profileItem.colors);
+      let defaultColor = colors[0];
+      let defaultPrice6m = 0;
+      let defaultPricePerM = 0;
+
+      // Find first color with valid prices
+      for (const color of colors) {
+        const price6m = parseFloat(profileItem.colors[color].price6m) || 0;
+        const pricePerM = parseFloat(profileItem.colors[color].pricePerM) || 0;
+        if (price6m > 0 || pricePerM > 0) {
+          defaultColor = color;
+          defaultPrice6m = price6m;
+          defaultPricePerM = pricePerM;
+          break;
+        }
+      }
+
+      // Determine default charging method based on available prices
+      let defaultChargingMethod: 'per6m' | 'perMeter' = 'per6m';
+      if (defaultPrice6m > 0 && defaultPricePerM === 0) {
+        defaultChargingMethod = 'per6m';
+      } else if (defaultPricePerM > 0 && defaultPrice6m === 0) {
+        defaultChargingMethod = 'perMeter';
+      } else if (defaultPrice6m > 0) {
+        // If both prices are available, prefer per6m
+        defaultChargingMethod = 'per6m';
+      }
+
+      newItem = {
+        id: crypto.randomUUID(),
+        name: item.name,
+        quantity: 0,
+        chargingMethod: defaultChargingMethod,
+        basePricePerPackage: 0,
+        basePricePerPiece: 0,
+        basePricePer6m: defaultPrice6m,
+        basePricePerMeter: defaultPricePerM,
+        selectedColor: defaultColor,
+        category: 'perfiles',
+        type: 'profile'
       };
     }
     
@@ -354,7 +436,7 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
     }
   };
 
-  const handleChargingMethodChange = (id: string, method: 'package' | 'piece' | 'm2') => {
+  const handleChargingMethodChange = (id: string, method: 'package' | 'piece' | 'm2' | 'per6m' | 'perMeter') => {
     const updated = selectedItems.map(item => {
       if (item.id === id) {
         return {
@@ -364,7 +446,46 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
       }
       return item;
     });
-    
+
+    setSelectedItems(updated);
+  };
+
+  const handleColorChange = (id: string, newColor: string) => {
+    const item = selectedItems.find(i => i.id === id);
+    if (!item || item.type !== 'profile') return;
+
+    // Find the profile in allItems to get the prices for the new color
+    const profile = allItems.find(p => p.name === item.name && p.type === 'profile') as (Profile & { category: 'perfiles'; type: 'profile' }) | undefined;
+    if (!profile) return;
+
+    const colorData = profile.colors[newColor];
+    if (!colorData) return;
+
+    const newPrice6m = parseFloat(colorData.price6m) || 0;
+    const newPricePerM = parseFloat(colorData.pricePerM) || 0;
+
+    // Update the item with new color and prices
+    const updated = selectedItems.map(i => {
+      if (i.id === id) {
+        // Update charging method if current method doesn't have a price in new color
+        let newChargingMethod = i.chargingMethod;
+        if (i.chargingMethod === 'per6m' && newPrice6m === 0 && newPricePerM > 0) {
+          newChargingMethod = 'perMeter';
+        } else if (i.chargingMethod === 'perMeter' && newPricePerM === 0 && newPrice6m > 0) {
+          newChargingMethod = 'per6m';
+        }
+
+        return {
+          ...i,
+          selectedColor: newColor,
+          basePricePer6m: newPrice6m,
+          basePricePerMeter: newPricePerM,
+          chargingMethod: newChargingMethod
+        };
+      }
+      return i;
+    });
+
     setSelectedItems(updated);
   };
 
@@ -380,6 +501,7 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
       case 'viniles': return '🎨';
       case 'herrajes': return '⚙️';
       case 'vidrios': return '🪟';
+      case 'perfiles': return '📐';
       default: return '📦';
     }
   };
@@ -391,6 +513,7 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
       case 'viniles': return 'Vinil';
       case 'herrajes': return 'Herraje';
       case 'vidrios': return 'Vidrio';
+      case 'perfiles': return 'Perfil';
       default: return 'Elemento';
     }
   };
@@ -406,9 +529,16 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
         materialIvaPercentage
       );
       return sum + total;
-    } else {
+    } else if (item.type === 'glass') {
       // Glass calculation
       const basePrice = item.chargingMethod === 'piece' ? item.basePricePerPiece : (item.basePricePerM2 || 0);
+      const ivaDecimal = materialIvaPercentage / 100;
+      const priceWithIVA = basePrice * (1 + ivaDecimal);
+      const total = priceWithIVA * item.quantity;
+      return sum + total;
+    } else {
+      // Profile calculation
+      const basePrice = item.chargingMethod === 'per6m' ? (item.basePricePer6m || 0) : (item.basePricePerMeter || 0);
       const ivaDecimal = materialIvaPercentage / 100;
       const priceWithIVA = basePrice * (1 + ivaDecimal);
       const total = priceWithIVA * item.quantity;
@@ -460,7 +590,7 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                     setShowResults(true);
                   }
                 }}
-                placeholder="Buscar elementos (tornillos, felpas, herrajes, viniles, vidrios, etc.)..."
+                placeholder="Buscar elementos (tornillos, felpas, herrajes, viniles, vidrios, perfiles, etc.)..."
                 className="w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               {searchTerm && (
@@ -488,11 +618,20 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
               >
                 <div className="p-2">
                   {searchResults.map((item, index) => {
-                    const hasPrice = item.type === 'hardware' 
-                      ? (parseFloat((item as Hardware).pricePerPackage) > 0 || parseFloat((item as Hardware).pricePerPiece) > 0)
-                      : (parseFloat((item as Glass).pricePerPiece) > 0 || parseFloat((item as Glass).pricePerM2) > 0);
+                    let hasPrice = false;
+                    if (item.type === 'hardware') {
+                      hasPrice = parseFloat((item as Hardware).pricePerPackage) > 0 || parseFloat((item as Hardware).pricePerPiece) > 0;
+                    } else if (item.type === 'glass') {
+                      hasPrice = parseFloat((item as Glass).pricePerPiece) > 0 || parseFloat((item as Glass).pricePerM2) > 0;
+                    } else if (item.type === 'profile') {
+                      const profileItem = item as Profile & { category: 'perfiles'; type: 'profile' };
+                      hasPrice = Object.values(profileItem.colors).some(color =>
+                        parseFloat(color.price6m) > 0 || parseFloat(color.pricePerM) > 0
+                      );
+                    }
+
                     const isSelected = selectedItems.some(selected => selected.name === item.name);
-                    
+
                     // Obtener precios con IVA para mostrar según el tipo
                     let priceDisplay = '';
                     if (hasPrice) {
@@ -501,11 +640,16 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                         if (pricesWithIVA.pricePerPackage > 0) priceDisplay += `$${pricesWithIVA.pricePerPackage.toFixed(2)}/paquete`;
                         if (pricesWithIVA.pricePerPackage > 0 && pricesWithIVA.pricePerPiece > 0) priceDisplay += ' - ';
                         if (pricesWithIVA.pricePerPiece > 0) priceDisplay += `$${pricesWithIVA.pricePerPiece.toFixed(2)}/pieza`;
-                      } else {
+                      } else if (item.type === 'glass') {
                         const pricesWithIVA = getGlassPriceWithIVA(item.name, [item as Glass], materialIvaPercentage);
                         if (pricesWithIVA.pricePerPiece > 0) priceDisplay += `$${pricesWithIVA.pricePerPiece.toFixed(2)}/pieza`;
                         if (pricesWithIVA.pricePerPiece > 0 && pricesWithIVA.pricePerM2 > 0) priceDisplay += ' - ';
                         if (pricesWithIVA.pricePerM2 > 0) priceDisplay += `$${pricesWithIVA.pricePerM2.toFixed(2)}/m²`;
+                      } else if (item.type === 'profile') {
+                        const profileItem = item as Profile & { category: 'perfiles'; type: 'profile' };
+                        const colors = Object.keys(profileItem.colors);
+                        const colorCount = colors.length;
+                        priceDisplay = `${colorCount} color${colorCount !== 1 ? 'es' : ''} disponible${colorCount !== 1 ? 's' : ''}`;
                       }
                     }
                     
@@ -595,6 +739,25 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                         </button>
                       </div>
                       
+                      {item.type === 'profile' && (
+                        <div className="mb-2">
+                          <div className="text-xs text-gray-500">Color:</div>
+                          <select
+                            value={item.selectedColor || ''}
+                            onChange={(e) => handleColorChange(item.id, e.target.value)}
+                            className="px-2 py-1 border rounded text-sm w-full"
+                          >
+                            {(() => {
+                              const profile = allItems.find(p => p.name === item.name && p.type === 'profile') as (Profile & { category: 'perfiles'; type: 'profile' }) | undefined;
+                              if (!profile) return null;
+                              return Object.keys(profile.colors).map(color => (
+                                <option key={color} value={color}>{color}</option>
+                              ));
+                            })()}
+                          </select>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <div>
                           <div className="text-xs text-gray-500">Cantidad:</div>
@@ -623,26 +786,35 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                             </button>
                           </div>
                         </div>
-                        
+
                         <div>
                           <div className="text-xs text-gray-500">Método:</div>
                           <select
                             value={item.chargingMethod}
-                            onChange={(e) => handleChargingMethodChange(item.id, e.target.value as 'package' | 'piece' | 'm2')}
+                            onChange={(e) => handleChargingMethodChange(item.id, e.target.value as any)}
                             className="px-2 py-1 border rounded text-sm w-full"
-                            disabled={item.type === 'hardware' 
-                              ? (item.basePricePerPackage === 0 || item.basePricePerPiece === 0)
-                              : (item.basePricePerPiece === 0 || (item.basePricePerM2 || 0) === 0)}
+                            disabled={
+                              item.type === 'hardware'
+                                ? (item.basePricePerPackage === 0 || item.basePricePerPiece === 0)
+                                : item.type === 'glass'
+                                  ? (item.basePricePerPiece === 0 || (item.basePricePerM2 || 0) === 0)
+                                  : ((item.basePricePer6m || 0) === 0 || (item.basePricePerMeter || 0) === 0)
+                            }
                           >
                             {item.type === 'hardware' ? (
                               <>
                                 <option value="package" disabled={item.basePricePerPackage === 0}>Por paquete</option>
                                 <option value="piece" disabled={item.basePricePerPiece === 0}>Por pieza</option>
                               </>
-                            ) : (
+                            ) : item.type === 'glass' ? (
                               <>
                                 <option value="piece" disabled={item.basePricePerPiece === 0}>Por pieza</option>
                                 <option value="m2" disabled={(item.basePricePerM2 || 0) === 0}>Por m²</option>
+                              </>
+                            ) : (
+                              <>
+                                <option value="per6m" disabled={(item.basePricePer6m || 0) === 0}>Por 6m</option>
+                                <option value="perMeter" disabled={(item.basePricePerMeter || 0) === 0}>Por metro</option>
                               </>
                             )}
                           </select>
@@ -661,9 +833,14 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                               materialIvaPercentage
                             );
                             return total.toFixed(2);
-                          } else {
-                            // Para vidrios: usar precio base sin IVA y aplicar IVA una sola vez
+                          } else if (item.type === 'glass') {
                             const basePrice = item.chargingMethod === 'piece' ? item.basePricePerPiece : (item.basePricePerM2 || 0);
+                            const ivaDecimal = materialIvaPercentage / 100;
+                            const priceWithIVA = basePrice * (1 + ivaDecimal);
+                            const total = priceWithIVA * item.quantity;
+                            return total.toFixed(2);
+                          } else {
+                            const basePrice = item.chargingMethod === 'per6m' ? (item.basePricePer6m || 0) : (item.basePricePerMeter || 0);
                             const ivaDecimal = materialIvaPercentage / 100;
                             const priceWithIVA = basePrice * (1 + ivaDecimal);
                             const total = priceWithIVA * item.quantity;
@@ -681,14 +858,23 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                                 materialIvaPercentage
                               );
                               return price.toFixed(2);
-                            } else {
-                              // Para vidrios: mostrar precio unitario con IVA
+                            } else if (item.type === 'glass') {
                               const basePrice = item.chargingMethod === 'piece' ? item.basePricePerPiece : (item.basePricePerM2 || 0);
                               const ivaDecimal = materialIvaPercentage / 100;
                               const priceWithIVA = basePrice * (1 + ivaDecimal);
                               return priceWithIVA.toFixed(2);
+                            } else {
+                              const basePrice = item.chargingMethod === 'per6m' ? (item.basePricePer6m || 0) : (item.basePricePerMeter || 0);
+                              const ivaDecimal = materialIvaPercentage / 100;
+                              const priceWithIVA = basePrice * (1 + ivaDecimal);
+                              return priceWithIVA.toFixed(2);
                             }
-                          })()}/{item.chargingMethod === 'package' ? 'paquete' : item.chargingMethod === 'piece' ? 'pieza' : 'm²'}
+                          })()}/{
+                            item.chargingMethod === 'package' ? 'paquete' :
+                            item.chargingMethod === 'piece' ? 'pieza' :
+                            item.chargingMethod === 'm2' ? 'm²' :
+                            item.chargingMethod === 'per6m' ? '6m' : 'metro'
+                          }
                         </div>
                       </div>
                     </div>
@@ -704,6 +890,22 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                       </div>
                       
                       <div className="flex items-center gap-4">
+                        {item.type === 'profile' && (
+                          <select
+                            value={item.selectedColor || ''}
+                            onChange={(e) => handleColorChange(item.id, e.target.value)}
+                            className="px-2 py-1 border rounded text-sm"
+                          >
+                            {(() => {
+                              const profile = allItems.find(p => p.name === item.name && p.type === 'profile') as (Profile & { category: 'perfiles'; type: 'profile' }) | undefined;
+                              if (!profile) return null;
+                              return Object.keys(profile.colors).map(color => (
+                                <option key={color} value={color}>{color}</option>
+                              ));
+                            })()}
+                          </select>
+                        )}
+
                         <div className="flex items-center">
                           <button
                             onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
@@ -728,28 +930,37 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                             <Plus size={14} />
                           </button>
                         </div>
-                        
+
                         <select
                           value={item.chargingMethod}
-                          onChange={(e) => handleChargingMethodChange(item.id, e.target.value as 'package' | 'piece' | 'm2')}
+                          onChange={(e) => handleChargingMethodChange(item.id, e.target.value as any)}
                           className="px-2 py-1 border rounded text-sm"
-                          disabled={item.type === 'hardware' 
-                            ? (item.basePricePerPackage === 0 || item.basePricePerPiece === 0)
-                            : (item.basePricePerPiece === 0 || (item.basePricePerM2 || 0) === 0)}
+                          disabled={
+                            item.type === 'hardware'
+                              ? (item.basePricePerPackage === 0 || item.basePricePerPiece === 0)
+                              : item.type === 'glass'
+                                ? (item.basePricePerPiece === 0 || (item.basePricePerM2 || 0) === 0)
+                                : ((item.basePricePer6m || 0) === 0 || (item.basePricePerMeter || 0) === 0)
+                          }
                         >
                           {item.type === 'hardware' ? (
                             <>
                               <option value="package" disabled={item.basePricePerPackage === 0}>Por paquete</option>
                               <option value="piece" disabled={item.basePricePerPiece === 0}>Por pieza</option>
                             </>
-                          ) : (
+                          ) : item.type === 'glass' ? (
                             <>
                               <option value="piece" disabled={item.basePricePerPiece === 0}>Por pieza</option>
                               <option value="m2" disabled={(item.basePricePerM2 || 0) === 0}>Por m²</option>
                             </>
+                          ) : (
+                            <>
+                              <option value="per6m" disabled={(item.basePricePer6m || 0) === 0}>Por 6m</option>
+                              <option value="perMeter" disabled={(item.basePricePerMeter || 0) === 0}>Por metro</option>
+                            </>
                           )}
                         </select>
-                        
+
                         <div className="text-right min-w-[80px]">
                           <p className="font-bold">${(() => {
                             if (item.type === 'hardware') {
@@ -761,9 +972,14 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                                 materialIvaPercentage
                               );
                               return total.toFixed(2);
-                            } else {
-                              // Para vidrios: usar precio base sin IVA y aplicar IVA una sola vez
+                            } else if (item.type === 'glass') {
                               const basePrice = item.chargingMethod === 'piece' ? item.basePricePerPiece : (item.basePricePerM2 || 0);
+                              const ivaDecimal = materialIvaPercentage / 100;
+                              const priceWithIVA = basePrice * (1 + ivaDecimal);
+                              const total = priceWithIVA * item.quantity;
+                              return total.toFixed(2);
+                            } else {
+                              const basePrice = item.chargingMethod === 'per6m' ? (item.basePricePer6m || 0) : (item.basePricePerMeter || 0);
                               const ivaDecimal = materialIvaPercentage / 100;
                               const priceWithIVA = basePrice * (1 + ivaDecimal);
                               const total = priceWithIVA * item.quantity;
@@ -781,14 +997,23 @@ export function AddAdditionalItemsModal({ onClose, onSaveAdditionalItems }: AddA
                                   materialIvaPercentage
                                 );
                                 return price.toFixed(2);
-                              } else {
-                                // Para vidrios: mostrar precio unitario con IVA
+                              } else if (item.type === 'glass') {
                                 const basePrice = item.chargingMethod === 'piece' ? item.basePricePerPiece : (item.basePricePerM2 || 0);
                                 const ivaDecimal = materialIvaPercentage / 100;
                                 const priceWithIVA = basePrice * (1 + ivaDecimal);
                                 return priceWithIVA.toFixed(2);
+                              } else {
+                                const basePrice = item.chargingMethod === 'per6m' ? (item.basePricePer6m || 0) : (item.basePricePerMeter || 0);
+                                const ivaDecimal = materialIvaPercentage / 100;
+                                const priceWithIVA = basePrice * (1 + ivaDecimal);
+                                return priceWithIVA.toFixed(2);
                               }
-                            })()}/{item.chargingMethod === 'package' ? 'paq' : item.chargingMethod === 'piece' ? 'pz' : 'm²'}
+                            })()}/{
+                              item.chargingMethod === 'package' ? 'paq' :
+                              item.chargingMethod === 'piece' ? 'pz' :
+                              item.chargingMethod === 'm2' ? 'm²' :
+                              item.chargingMethod === 'per6m' ? '6m' : 'm'
+                            }
                           </p>
                         </div>
                         

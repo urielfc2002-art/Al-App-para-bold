@@ -27,27 +27,31 @@ const CATEGORIES = {
   CalculadorasTrabajoL3: [
     // Fijo Corredizo L3
     'windowWidth',
-    'windowHeight', 
+    'windowHeight',
     'windowZoclo',
     'windowFormula',
-    
+    'windowGlassAdjustment',
+
     // Doble Corrediza L3
     'xxWidth',
     'xxHeight',
-    'xxZocloSelection', 
+    'xxZocloSelection',
     'xxFormula_L3',
-    
+    'xxGlassAdjustment',
+
     // 2 Fijos 2 Corredizos L3
     'twoFixedTwoSlidingWidth',
     'twoFixedTwoSlidingHeight',
     'twoFixedTwoSlidingZoclo',
     'twoFixedTwoSlidingFormula',
-    
+    'twoFixedTwoSlidingGlassAdjustment',
+
     // 4 Corredizas L3
     'fourSlidingWidth',
-    'fourSlidingHeight', 
+    'fourSlidingHeight',
     'fourSlidingZoclo',
-    'fourSlidingFormula'
+    'fourSlidingFormula',
+    'fourSlidingGlassAdjustment'
   ],
 
   // Calculadoras de Trabajo - Línea Nacional de 2
@@ -58,6 +62,7 @@ const CATEGORIES = {
     'windowLine2Zoclo',
     'windowLine2Formula',
     'windowCalculatorLine2Formula',
+    'windowLine2GlassAdjustment',
 
     // Doble Corrediza L2
     'xxFormula_L2'
@@ -75,7 +80,11 @@ const CATEGORIES = {
   FormulasPersonalizadasCotizadores: [
     'fixedSlidingFormula',
     'fourSlidingFormula',
+    'fourSlidingQuoteFormula',
     'twoFixedTwoSlidingFormula',
+    'two_fixed_two_sliding_quote_formula',
+    'double_sliding_quote_formula',
+    'fixedSlidingLine2QuoteFormula',
     'doubleSlidingLine2QuoteFormula'
   ],
 
@@ -86,24 +95,32 @@ const CATEGORIES = {
     'fixedSlidingHeight',
     'fixedSlidingZoclo',
     'selectedAdditionalHardware',
-    
+    'selectedAdditionalGlass',
+    'fixed_sliding_line3_glass_adjustment',
+
     // Doble Corrediza Quote L3
     'double_sliding_quote_width',
     'double_sliding_quote_height',
     'double_sliding_quote_zoclo',
     'selectedDoubleSlidingHardware',
-    
+    'selectedDoubleSlidingQuoteGlass',
+    'double_sliding_quote_glass_adjustment',
+
     // 2 Fijos 2 Corredizos Quote L3
     'two_fixed_two_sliding_quote_width',
     'two_fixed_two_sliding_quote_height',
     'two_fixed_two_sliding_quote_zoclo',
     'selectedTwoFixedTwoSlidingHardware',
-    
+    'selectedTwoFixedTwoSlidingGlass',
+    'two_fixed_two_sliding_quote_glass_adjustment',
+
     // 4 Corredizas Quote L3
     'fourSlidingQuoteWidth',
     'fourSlidingQuoteHeight',
     'fourSlidingQuoteZoclo',
-    'selectedFourSlidingHardware'
+    'selectedFourSlidingHardware',
+    'selectedFourSlidingGlass',
+    'fourSlidingQuoteGlassAdjustment'
   ],
 
   // Cotizadores - Línea Nacional de 2
@@ -111,13 +128,18 @@ const CATEGORIES = {
     // Fijo Corredizo Quote L2
     'fixedSlidingLine2QuoteWidth',
     'fixedSlidingLine2QuoteHeight',
+    'fixedSlidingLine2QuoteZoclo',
     'selectedFixedSlidingLine2Hardware',
+    'selectedFixedSlidingLine2Glass',
+    'fixedSlidingLine2GlassAdjustment',
 
     // Doble Corrediza Quote L2
     'doubleSlidingLine2QuoteWidth',
     'doubleSlidingLine2QuoteHeight',
     'doubleSlidingLine2QuoteZoclo',
-    'selectedDoubleSlidingLine2Hardware'
+    'selectedDoubleSlidingLine2Hardware',
+    'selectedDoubleSlidingLine2Glass',
+    'doubleSlidingLine2GlassAdjustment'
   ],
 
   // Generador de Fórmulas Personalizadas
@@ -138,6 +160,7 @@ const CATEGORIES = {
   // Paquete de Piezas de Trabajo
   PaquetePiezasTrabajo: [
     'packagePieces',
+    'packageGlasses',
     'savedPiecePackages'
   ],
 
@@ -162,6 +185,13 @@ const CATEGORIES = {
     'savedGeneralQuotes'
   ],
 
+  // Estado de Cotizaciones Actuales
+  SistemaCotizaciones: [
+    'currentWindowPackageQuoteId',
+    'currentWindowPackageQuoteName',
+    'generalQuoteCurrentId'
+  ],
+
   // Sistema de Inventario
   SistemaInventario: [
     'inventory_suppliers',
@@ -175,6 +205,23 @@ const CATEGORIES = {
   // Optimización de Vidrios
   OptimizacionVidrios: [
     'glassOptimizationProjects'
+  ],
+
+  // Hoja de Cotización
+  HojaCotizacion: [
+    'alcalc_quote_fixedData_v1',
+    'alcalc_quote_savedQuotes_v1'
+  ],
+
+  // Autenticación y Dispositivos
+  Autenticacion: [
+    'alcalc.deviceLockNotice.pending',
+    'alcalc.lastEmail'
+  ],
+
+  // Configuración de Debug
+  ConfiguracionDebug: [
+    'ALC_DEBUG'
   ]
 };
 
@@ -190,7 +237,7 @@ function generateBackupJson(): string {
     // Metadatos del backup
     _metadata: {
       appName: "AL Calculadora",
-      version: "1.0.0",
+      version: "1.1.0",
       backupDate: new Date().toISOString(),
       description: "Copia de seguridad completa de AL Calculadora - Incluye todas las configuraciones, datos de trabajo y cotizaciones",
       totalCategorias: Object.keys(CATEGORIES).length,
@@ -253,19 +300,23 @@ function getCategoryDescription(categoryName: string): string {
     ConfiguracionGlobal: "Configuraciones generales de la aplicación como colores, métodos de cobro e IVA",
     NotasLienzo: "Datos del lienzo de notas y paquetes guardados de componentes",
     BaseDatosPrecios: "Base de datos de precios de perfiles, herrajes y vidrios",
-    CalculadorasTrabajoL3: "Estados y configuraciones de calculadoras de trabajo para Línea Nacional de 3",
-    CalculadorasTrabajoL2: "Estados y configuraciones de calculadoras de trabajo para Línea Nacional de 2",
+    CalculadorasTrabajoL3: "Estados y configuraciones de calculadoras de trabajo para Línea Nacional de 3 incluyendo ajustes de vidrios",
+    CalculadorasTrabajoL2: "Estados y configuraciones de calculadoras de trabajo para Línea Nacional de 2 incluyendo ajustes de vidrios",
     CalculadoraPuertas: "Configuraciones y estados de la calculadora de puertas",
-    CotizadoresL3: "Estados y configuraciones de cotizadores para Línea Nacional de 3",
-    CotizadoresL2: "Estados y configuraciones de cotizadores para Línea Nacional de 2",
+    CotizadoresL3: "Estados y configuraciones de cotizadores para Línea Nacional de 3 incluyendo vidrios seleccionados y ajustes de vidrios",
+    CotizadoresL2: "Estados y configuraciones de cotizadores para Línea Nacional de 2 incluyendo vidrios seleccionados y ajustes de vidrios",
     GeneradorFormulas: "Calculadoras personalizadas y paquetes de fórmulas creados por el usuario",
-    FormulasPersonalizadasCotizadores: "Fórmulas personalizadas guardadas para calculadoras de cotización de ventanas",
+    FormulasPersonalizadasCotizadores: "Fórmulas personalizadas guardadas para calculadoras de cotización de ventanas y puertas",
     GeneradorFormulasPuertas: "Calculadoras personalizadas y paquetes de fórmulas de puertas creados por el usuario",
-    PaquetePiezasTrabajo: "Paquetes de piezas para trabajo y proyectos guardados",
+    PaquetePiezasTrabajo: "Paquetes de piezas y vidrios para trabajo y proyectos guardados",
     PaqueteCotizado: "Paquetes cotizados y elementos adicionales para cotizaciones",
     CotizadorGeneral: "Configuraciones y cotizaciones del cotizador general personalizado",
+    SistemaCotizaciones: "IDs y nombres de cotizaciones actualmente en progreso, esenciales para continuar trabajos al cambiar de dispositivo",
     SistemaInventario: "Sistema de gestión de inventario incluyendo proveedores, productos, transacciones e historial de precios",
-    OptimizacionVidrios: "Proyectos guardados del optimizador de cortes de vidrio"
+    OptimizacionVidrios: "Proyectos guardados del optimizador de cortes de vidrio",
+    HojaCotizacion: "Sistema de hojas de cotización con datos fijos de la empresa y cotizaciones guardadas",
+    Autenticacion: "Datos de autenticación y configuración de dispositivos del usuario",
+    ConfiguracionDebug: "Configuraciones de depuración y logs del sistema"
   };
 
   return descriptions[categoryName] || "Categoría de datos de la aplicación";

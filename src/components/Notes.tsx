@@ -94,12 +94,143 @@ const reorganizeComponents = (components: Component[]) => {
   return reorganized;
 };
 
+// New HelpModal Component with Tutorial Thumbnail for Notes
+interface HelpModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+interface TutorialButtonProps {
+  imageUrl: string;
+  title: string;
+  videoUrl: string;
+}
+
+function TutorialButton({ imageUrl, title, videoUrl }: TutorialButtonProps) {
+  const [isPressed, setIsPressed] = useState(false);
+
+  const handleClick = () => {
+    setIsPressed(true);
+    setTimeout(() => {
+      window.open(videoUrl, '_blank');
+      setIsPressed(false);
+    }, 150);
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-4 mb-6">
+      {/* Thumbnail Image - Clickable */}
+      <div
+        onClick={handleClick}
+        className={`cursor-pointer transition-transform ${
+          isPressed ? 'scale-95' : 'hover:scale-105'
+        }`}
+        style={{
+          width: '100%',
+          maxWidth: '600px',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        }}
+      >
+        <img
+          src={imageUrl}
+          alt={title}
+          style={{
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+          }}
+        />
+      </div>
+
+      {/* Button */}
+      <button
+        onClick={handleClick}
+        className={`transition-all ${isPressed ? 'scale-95' : ''}`}
+        style={{
+          lineHeight: 1,
+          backgroundColor: 'transparent',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.35em',
+          padding: '0.75em 1.5em',
+          color: '#fff',
+          border: '1px solid transparent',
+          fontWeight: 700,
+          borderRadius: '2em',
+          fontSize: '1rem',
+          boxShadow: '0 0.7em 1.5em -0.5em rgba(0, 255, 17, 0.745)',
+          background: 'linear-gradient(90deg, #00FF11 0%, #00FF11 100%)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = '#f4f5f2';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'transparent';
+        }}
+      >
+        <span>{title}</span>
+      </button>
+    </div>
+  );
+}
+
+function HelpModal({ open, onClose }: HelpModalProps) {
+  if (!open) return null;
+
+  const tutorial = {
+    imageUrl: '/assets/miniaturas/notas/nota.png',
+    title: 'NOTAS',
+    videoUrl: 'https://www.youtube.com/playlist?list=PL2CS-Ysr2M95H0ePwAmD2GYEXnx92_4ZC',
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center rounded-t-3xl z-10">
+          <button
+            onClick={onClose}
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+            aria-label="Cerrar"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <h2 className="text-2xl font-bold text-gray-900 ml-4">Tutoriales de ayuda</h2>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          <TutorialButton
+            imageUrl={tutorial.imageUrl}
+            title={tutorial.title}
+            videoUrl={tutorial.videoUrl}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Notes({ onBack, onNavigateToCalculator }: NotesProps) {
   const [components, setComponents] = useSyncedState<Component[]>('notesCanvasComponents', []);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showSavedPackagesModal, setShowSavedPackagesModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [exportingComponent, setExportingComponent] = useState<{
     id: string;
     type: string;
@@ -267,10 +398,10 @@ export function Notes({ onBack, onNavigateToCalculator }: NotesProps) {
           <div className="relative">
             <button
               onClick={() => setShowAddMenu(!showAddMenu)}
-              className="bg-white text-[#003366] px-3 py-2 rounded-full shadow-lg hover:bg-gray-100 transition-colors flex items-center gap-1 font-medium text-sm flex-shrink-0"
+              className="bg-white text-[#003366] p-2 rounded-full shadow-lg hover:bg-gray-100 transition-colors flex items-center justify-center flex-shrink-0"
+              title="Agregar elementos"
             >
-              <Plus size={16} />
-              <span>Elementos</span>
+              <Plus size={20} />
             </button>
             {showAddMenu && (
               <AddComponentMenu
@@ -279,6 +410,13 @@ export function Notes({ onBack, onNavigateToCalculator }: NotesProps) {
               />
             )}
           </div>
+
+          <button
+            onClick={() => setShowHelpModal(true)}
+            className="bg-white text-[#003366] px-3 py-2 rounded-full shadow-lg hover:bg-gray-100 transition-colors flex items-center gap-1 font-medium text-sm flex-shrink-0"
+          >
+            <span>¿Necesitas ayuda?</span>
+          </button>
         </div>
       </div>
 
@@ -337,6 +475,8 @@ export function Notes({ onBack, onNavigateToCalculator }: NotesProps) {
           onSelectOption={handleExportOptionSelected}
         />
       )}
+
+      <HelpModal open={showHelpModal} onClose={() => setShowHelpModal(false)} />
     </div>
   );
 }

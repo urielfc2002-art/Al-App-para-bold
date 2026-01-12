@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ArrowLeft, Trash2, ChevronLeft, ChevronRight, RotateCcw, Save, FolderOpen } from 'lucide-react';
 import { SavePiecePackageModal } from './SavePiecePackageModal';
 import { SavedPiecePackagesModal } from './SavedPiecePackagesModal';
@@ -8,6 +8,7 @@ interface ProfilePiece {
   measure: string;
   pieces: number;
   windowType: string;
+  zocloProfile?: string;
 }
 
 interface PackagePiecesProps {
@@ -22,41 +23,46 @@ export function PackagePieces({ onBack }: PackagePiecesProps) {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
 
-  // Agrupar piezas por tipo
-  const groupedPieces = pieces.reduce((acc, piece) => {
-    if (!acc[piece.type]) {
-      acc[piece.type] = [];
-    }
-    acc[piece.type].push(piece);
-    return acc;
-  }, {} as Record<string, ProfilePiece[]>);
+  const groupedPieces = useMemo(() => {
+    const grouped = pieces.reduce((acc, piece) => {
+      if (!acc[piece.type]) {
+        acc[piece.type] = [];
+      }
+      acc[piece.type].push(piece);
+      return acc;
+    }, {} as Record<string, ProfilePiece[]>);
 
-  // Ordenar cada grupo por medida (de mayor a menor), excepto ZOCLO que se ordena por tipo primero
-  Object.values(groupedPieces).forEach(group => {
-    if (group.length > 0 && group[0].type === 'ZOCLO') {
-      // Para ZOCLO: ordenar primero por tipo de zócalo, luego por medida
-      const zocloOrder = ['ZOCLO 1V', 'ZOCLO 2V', 'CABEZAL'];
-      group.sort((a, b) => {
-        const aProfile = a.zocloProfile || '';
-        const bProfile = b.zocloProfile || '';
-        const aIndex = zocloOrder.indexOf(aProfile);
-        const bIndex = zocloOrder.indexOf(bProfile);
-        
-        // Si son del mismo tipo de zócalo, ordenar por medida (mayor a menor)
-        if (aProfile === bProfile) {
-          return parseFloat(b.measure) - parseFloat(a.measure);
-        }
-        
-        // Si son tipos diferentes, ordenar por el orden definido
-        return aIndex - bIndex;
-      });
-    } else {
-      // Para otros tipos: ordenar solo por medida (mayor a menor)
-      group.sort((a, b) => parseFloat(b.measure) - parseFloat(a.measure));
-    }
-  });
+    Object.keys(grouped).forEach(type => {
+      const group = grouped[type];
 
-  // Orden específico de los tipos de perfiles
+      if (type === 'ZOCLO') {
+        const zocloOrder = ['ZOCLO 1V', 'ZOCLO 2V', 'CABEZAL'];
+        group.sort((a, b) => {
+          const aProfile = a.zocloProfile || '';
+          const bProfile = b.zocloProfile || '';
+          const aIndex = zocloOrder.indexOf(aProfile);
+          const bIndex = zocloOrder.indexOf(bProfile);
+
+          if (aProfile === bProfile) {
+            const aMeasure = parseFloat((a.measure || '0').toString().trim());
+            const bMeasure = parseFloat((b.measure || '0').toString().trim());
+            return bMeasure - aMeasure;
+          }
+
+          return aIndex - bIndex;
+        });
+      } else {
+        group.sort((a, b) => {
+          const aMeasure = parseFloat((a.measure || '0').toString().trim());
+          const bMeasure = parseFloat((b.measure || '0').toString().trim());
+          return bMeasure - aMeasure;
+        });
+      }
+    });
+
+    return grouped;
+  }, [pieces]);
+
   const profileOrder = ['JAMBA', 'RIEL', 'CERCO', 'TRASLAPE', 'ZOCLO', 'RIEL ADICIONAL'];
 
   const handleClearAll = () => {
@@ -84,9 +90,8 @@ export function PackagePieces({ onBack }: PackagePiecesProps) {
 
   const handleLoadPackage = (packageData: any) => {
     localStorage.setItem('packagePieces', JSON.stringify(packageData.pieces));
-    setPieces(packageData.pieces);
     setShowLoadModal(false);
-    alert(`Paquete "${packageData.name}" cargado exitosamente!`);
+    window.location.reload();
   };
 
   const handleStartWorking = () => {
@@ -101,10 +106,9 @@ export function PackagePieces({ onBack }: PackagePiecesProps) {
   };
 
   if (showWorkflow) {
-    // Crear una lista plana de todas las piezas ordenadas
     const workflowSteps = profileOrder.flatMap(type => {
       const typePieces = groupedPieces[type] || [];
-      return typePieces.sort((a, b) => parseFloat(b.measure) - parseFloat(a.measure));
+      return [...typePieces];
     });
 
     const currentPiece = workflowSteps[currentStep];
@@ -247,7 +251,10 @@ export function PackagePieces({ onBack }: PackagePiecesProps) {
 
           return (
             <div key={profileType} className="mb-6">
-              <h2 className="text-xl font-bold text-[#003366] mb-4">{profileType}</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-[#003366]">{profileType}</h2>
+                <span className="text-xs text-gray-500 italic">ordenadas de mayor a menor</span>
+              </div>
               <div className="space-y-2">
                 {profilePieces.map((piece, index) => (
                   <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded">

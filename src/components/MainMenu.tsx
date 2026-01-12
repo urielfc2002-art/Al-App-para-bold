@@ -217,6 +217,10 @@ type TrayMessage = {
   body: string;
   createdAt: Date;
   isNew: boolean;
+  buttons?: Array<{
+    label: string;
+    url: string;
+  }>;
 };
 
 /* ====== Componente invisible para activar auto-backup ====== */
@@ -339,7 +343,23 @@ const MainMenu: React.FC = () => {
   // Auth
   useEffect(() => {
     const auth = getAuth();
-    const unsubAuth = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      
+      // 🔹 Persistencia de foto del usuario
+      if (u) {
+        const photoKey = `alcalc.userPhoto.${u.uid}`;
+        
+        // Si el usuario tiene foto, guardarla en localStorage
+        if (u.photoURL) {
+          try {
+            localStorage.setItem(photoKey, u.photoURL);
+          } catch (err) {
+            console.error("Error al guardar foto del usuario:", err);
+          }
+        }
+      }
+    });
     return () => unsubAuth();
   }, []);
 
@@ -391,6 +411,11 @@ const MainMenu: React.FC = () => {
     const lastSeenMs: number =
       (userDoc?.lastSeenAnnouncementsAt?.toMillis && userDoc.lastSeenAnnouncementsAt.toMillis()) || 0;
 
+    // 🆕 Obtener fecha de creación de cuenta del usuario
+    const userCreationDate = user.metadata?.creationTime 
+      ? new Date(user.metadata.creationTime).getTime() 
+      : 0;
+
     const q = query(
       collection(db, "announcements"),
       where("isDeleted", "==", false),
@@ -406,6 +431,38 @@ const MainMenu: React.FC = () => {
         const ts = data?.createdAt;
         const ms = ts?.toMillis ? ts.toMillis() : 0;
         const created = ms > 0 ? new Date(ms) : new Date();
+        
+        // 🆕 FILTRO 1: Solo mostrar mensajes posteriores a la fecha de registro del usuario
+        // (A menos que el mensaje no tenga fecha o sea más reciente que el registro)
+        if (userCreationDate > 0 && ms > 0 && ms < userCreationDate) {
+          return; // Saltar este mensaje (es anterior al registro)
+        }
+
+        // 🆕 FILTRO 2: Sistema de destinatarios
+        const destinatarios = data?.destinatarios;
+        let isForThisUser = false;
+
+        if (!destinatarios) {
+          // Si no existe el campo, es para todos (retrocompatibilidad)
+          isForThisUser = true;
+        } else if (Array.isArray(destinatarios)) {
+          // Si es un array, verificar si contiene "Todos" o el UID del usuario
+          if (destinatarios.includes("Todos") || destinatarios.includes(user.uid)) {
+            isForThisUser = true;
+          }
+        } else if (typeof destinatarios === "string") {
+          // Retrocompatibilidad: si es string, verificar si dice "Todos" o contiene el UID
+          if (destinatarios === "Todos" || destinatarios.includes(user.uid)) {
+            isForThisUser = true;
+          }
+        }
+
+        // Si el mensaje no es para este usuario, no lo agregamos
+        if (!isForThisUser) {
+          return;
+        }
+
+        // Mensaje pasa todos los filtros, agregarlo a la lista
         const isNew = ms > lastSeenMs;
         if (isNew) count++;
 
@@ -415,6 +472,13 @@ const MainMenu: React.FC = () => {
           body: String(data?.body ?? ""),
           createdAt: created,
           isNew,
+          // 🔹 Incluir botones si existen en el documento
+          buttons: data?.buttons && Array.isArray(data.buttons) 
+            ? data.buttons.map((btn: any) => ({
+                label: String(btn?.label || ""),
+                url: String(btn?.url || "")
+              })).filter((btn: any) => btn.label && btn.url)
+            : undefined
         });
       });
       setUnreadCount(count);
@@ -718,6 +782,14 @@ const MainMenu: React.FC = () => {
       const auth = getAuth();
       if (auth.currentUser) {
         try { await releaseDeviceLock(auth.currentUser.uid); } catch {}
+        
+        // 🔹 Limpiar foto del localStorage al cerrar sesión
+        try {
+          const photoKey = `alcalc.userPhoto.${auth.currentUser.uid}`;
+          localStorage.removeItem(photoKey);
+        } catch (err) {
+          console.error("Error al limpiar foto del usuario:", err);
+        }
       }
       await signOut(auth);
       setDrawerOpen(false);
@@ -742,7 +814,26 @@ const MainMenu: React.FC = () => {
 
   // Datos cuenta
   const { label, value } = formatExpiry();
-  const photo = user?.photoURL || "";
+  
+  // 🔹 Obtener foto del usuario con fallback a localStorage
+  const getPhotoURL = () => {
+    if (user?.photoURL) {
+      return user.photoURL;
+    }
+    // Si no hay foto en el usuario (offline), intentar cargar desde localStorage
+    if (user?.uid) {
+      try {
+        const photoKey = `alcalc.userPhoto.${user.uid}`;
+        const cachedPhoto = localStorage.getItem(photoKey);
+        return cachedPhoto || "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  };
+  
+  const photo = getPhotoURL();
   const displayName = user?.displayName || "Cuenta sin nombre";
   const email = user?.email || "";
 

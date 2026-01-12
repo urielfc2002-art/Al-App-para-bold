@@ -1028,7 +1028,7 @@ export function DoubleSlidingQuoteCalculatorLine2({ onBack, onBackToNotes, initi
                       <HelpCircle size={20} />
                     </button>
                     {showGlassHelpTooltip && (
-                      <div className="absolute left-0 top-8 z-50 w-72 bg-blue-600 text-white p-4 rounded-lg shadow-xl">
+                      <div className="absolute right-0 top-8 z-50 w-64 bg-blue-600 text-white p-4 rounded-lg shadow-xl">
                         <button
                           onClick={() => setShowGlassHelpTooltip(false)}
                           className="absolute top-2 right-2 text-white hover:text-gray-200"

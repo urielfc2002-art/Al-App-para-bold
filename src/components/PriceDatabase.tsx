@@ -172,6 +172,8 @@ export function PriceDatabase({ onBack }: PriceDatabaseProps) {
   const [hardwareLineType, setHardwareLineType] = useState<'L2' | 'L3' | 'generic'>('L3');
   const [profileLineType, setProfileLineType] = useState<'L2' | 'L3' | 'others'>('L3');
   const [ivaPercentage, setIvaPercentage] = useSyncedState<number>('materialIvaPercentage', 16);
+  const [ivaInputValue, setIvaInputValue] = useState<string>(String(ivaPercentage));
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
 
   // Elementos predeterminados que no se pueden eliminar
   const DEFAULT_PROFILE_NAMES_FULL = [
@@ -249,6 +251,10 @@ export function PriceDatabase({ onBack }: PriceDatabaseProps) {
         console.log('✅ Porcentaje de IVA sincronizado con Supabase');
       }
     });
+  }, [ivaPercentage]);
+
+  useEffect(() => {
+    setIvaInputValue(String(ivaPercentage));
   }, [ivaPercentage]);
 
   const handleProfilePriceChange = (index: number, field: 'price6m' | 'pricePerM', value: string) => {
@@ -347,6 +353,24 @@ export function PriceDatabase({ onBack }: PriceDatabaseProps) {
     setDeleteConfirmation(null);
   };
 
+  const handleIvaInputChange = (value: string) => {
+    setIvaInputValue(value);
+  };
+
+  const handleIvaInputBlur = () => {
+    if (ivaInputValue === '' || ivaInputValue === null || ivaInputValue === undefined) {
+      setIvaPercentage(0);
+      setIvaInputValue('0');
+    } else {
+      const numValue = parseFloat(ivaInputValue);
+      if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+        setIvaPercentage(numValue);
+      } else {
+        setIvaInputValue(String(ivaPercentage));
+      }
+    }
+  };
+
   // Filter hardware by line type for display
   const filteredHardware = hardware.filter(item => {
     if (hardwareLineType === 'L2') {
@@ -417,6 +441,8 @@ export function PriceDatabase({ onBack }: PriceDatabaseProps) {
               localStorage.setItem('windowProfiles', JSON.stringify(profiles));
               localStorage.setItem('windowHardware', JSON.stringify(hardware));
               localStorage.setItem('windowGlass', JSON.stringify(glass));
+              setShowSaveSuccess(true);
+              setTimeout(() => setShowSaveSuccess(false), 3000);
             }}
             className="flex items-center gap-1 sm:gap-2 bg-green-500 text-white px-2 py-1 sm:px-3 sm:py-2 rounded-lg hover:bg-green-600 transition-colors text-sm sm:text-base"
           >
@@ -428,8 +454,24 @@ export function PriceDatabase({ onBack }: PriceDatabaseProps) {
 
       <div className="text-center my-4 sm:my-8">
         <h1 className="text-white text-4xl sm:text-5xl font-bold mb-2 sm:mb-4">BASE DE DATOS</h1>
+
+        {showSaveSuccess && (
+          <div className="mb-4 animate-fade-in">
+            <div className="bg-green-500 text-white px-6 py-3 rounded-lg inline-flex items-center gap-2 shadow-lg">
+              <Check size={20} className="font-bold" />
+              <span className="font-medium">Se guardó todo correctamente</span>
+            </div>
+          </div>
+        )}
+
         <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg inline-block">
-          <p className="text-sm font-medium">📝 Nota: Ingrese todos los precios SIN IVA. El sistema aplicará automáticamente el {ivaPercentage}% de IVA en las cotizaciones.</p>
+          <p className="text-sm font-medium">
+            📝 Nota: Ingrese todos los precios SIN IVA.
+            {ivaPercentage > 0
+              ? ` El sistema aplicará automáticamente el ${ivaPercentage}% de IVA en las cotizaciones.`
+              : ' Con IVA en 0%, los precios se enviarán tal cual están en la base de datos.'
+            }
+          </p>
         </div>
         <div className="mt-4 flex items-center justify-center gap-4">
           <label className="text-white font-medium">Porcentaje de IVA de materiales:</label>
@@ -439,10 +481,11 @@ export function PriceDatabase({ onBack }: PriceDatabaseProps) {
               min="0"
               max="100"
               step="0.01"
-              value={ivaPercentage === 0 ? '' : ivaPercentage}
-              onChange={(e) => setIvaPercentage(parseFloat(e.target.value) || 0)}
+              value={ivaInputValue}
+              onChange={(e) => handleIvaInputChange(e.target.value)}
+              onBlur={handleIvaInputBlur}
               className="w-20 px-3 py-2 border rounded-lg text-center"
-              placeholder="16"
+              placeholder="0"
             />
             <span className="text-white font-medium">%</span>
           </div>

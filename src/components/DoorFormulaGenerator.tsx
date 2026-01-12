@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Plus, Trash2, Save, Calculator, Play, Package, Edit, RotateCcw, X, AlertCircle } from 'lucide-react';
 import { DoorFormulaCuttingWorkflow } from './DoorFormulaCuttingWorkflow';
 import { DoorFormulaPackagePieces } from './DoorFormulaPackagePieces';
+import { normalizeProfileName } from '../utils/profileUtils';
 
 interface Operation {
   type: 'suma' | 'resta' | 'multiplicacion' | 'division';
@@ -275,7 +276,7 @@ export function DoorFormulaGenerator({ onBack }: DoorFormulaGeneratorProps) {
       return;
     }
 
-    const calculatedResults = selectedCalculator.formulas.map(formula => {
+    const calculatedResults = selectedCalculator.formulas.map((formula, originalIndex) => {
       let baseValue = formula.appliesTo === 'ancho' ? ancho : alto;
 
       formula.operations.forEach(operation => {
@@ -300,11 +301,48 @@ export function DoorFormulaGenerator({ onBack }: DoorFormulaGeneratorProps) {
       return {
         profileName: formula.profileName,
         result: Math.max(0, baseValue),
-        pieces: formula.pieces
+        pieces: formula.pieces,
+        originalIndex
       };
     });
 
-    setResults(calculatedResults);
+    // Ordenamiento inteligente: agrupar por nombre de perfil y ordenar dentro de cada grupo
+    const profileGroups = new Map<string, typeof calculatedResults>();
+    const firstAppearance = new Map<string, number>();
+
+    // Agrupar resultados por nombre de perfil y registrar primera aparición
+    calculatedResults.forEach((result) => {
+      const normalizedName = result.profileName.toLowerCase().trim();
+
+      if (!profileGroups.has(normalizedName)) {
+        profileGroups.set(normalizedName, []);
+        firstAppearance.set(normalizedName, result.originalIndex);
+      }
+
+      profileGroups.get(normalizedName)!.push(result);
+    });
+
+    // Ordenar cada grupo por medida resultante de mayor a menor
+    profileGroups.forEach((group) => {
+      group.sort((a, b) => b.result - a.result);
+    });
+
+    // Reconstruir array ordenado: mantener orden de primera aparición de cada grupo
+    const sortedResults: typeof calculatedResults = [];
+    Array.from(profileGroups.entries())
+      .sort(([nameA], [nameB]) => {
+        const indexA = firstAppearance.get(nameA) || 0;
+        const indexB = firstAppearance.get(nameB) || 0;
+        return indexA - indexB;
+      })
+      .forEach(([, group]) => {
+        sortedResults.push(...group);
+      });
+
+    // Remover el campo originalIndex antes de guardar en results
+    const finalResults = sortedResults.map(({ originalIndex, ...rest }) => rest);
+
+    setResults(finalResults);
   }, [selectedCalculator, measurements.ancho, measurements.alto]);
 
   const handleStartWorking = () => {
@@ -330,11 +368,12 @@ export function DoorFormulaGenerator({ onBack }: DoorFormulaGeneratorProps) {
       })) + 1 :
       1;
 
-    const piecesToAdd = results.map(result => ({
-      type: result.profileName.toUpperCase(),
+    const piecesToAdd = results.map((result, index) => ({
+      type: normalizeProfileName(result.profileName),
       measure: result.result.toFixed(1),
       pieces: result.pieces,
-      doorType: `${selectedCalculator.name} ${nextDoorNumber}`
+      doorType: `${selectedCalculator.name} ${nextDoorNumber}`,
+      insertionOrder: index
     }));
 
     localStorage.setItem('doorFormulaGeneratorPackagePieces', JSON.stringify([...currentPieces, ...piecesToAdd]));

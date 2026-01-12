@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Trash2, ChevronLeft, ChevronRight, RotateCcw, Save, FolderOpen, Package } from 'lucide-react';
 import { SaveDoorFormulaPiecePackageModal } from './SaveDoorFormulaPiecePackageModal';
 import { SavedDoorFormulaPiecePackagesModal } from './SavedDoorFormulaPiecePackagesModal';
+import { normalizeProfileName } from '../utils/profileUtils';
 
 interface ProfilePiece {
   type: string;
   measure: string;
   pieces: number;
   doorType: string;
+  insertionOrder?: number;
 }
 
 interface DoorFormulaPackagePiecesProps {
@@ -28,19 +30,42 @@ export function DoorFormulaPackagePieces({ onBack }: DoorFormulaPackagePiecesPro
     localStorage.setItem('doorFormulaGeneratorPackagePieces', JSON.stringify(pieces));
   }, [pieces]);
 
+  // Agrupar piezas por tipo usando normalización
   const groupedPieces = pieces.reduce((acc, piece) => {
-    if (!acc[piece.type]) {
-      acc[piece.type] = [];
+    const normalizedType = normalizeProfileName(piece.type);
+    if (!acc[normalizedType]) {
+      acc[normalizedType] = [];
     }
-    acc[piece.type].push(piece);
+    acc[normalizedType].push(piece);
     return acc;
   }, {} as Record<string, ProfilePiece[]>);
 
+  // Ordenar cada grupo por medida (de mayor a menor)
   Object.values(groupedPieces).forEach(group => {
     group.sort((a, b) => parseFloat(b.measure) - parseFloat(a.measure));
   });
 
-  const profileTypes = Object.keys(groupedPieces).sort();
+  // Obtener todos los tipos de perfiles únicos y ordenarlos por orden de inserción
+  const profileTypes = Object.keys(groupedPieces).sort((a, b) => {
+    const groupA = groupedPieces[a] || [];
+    const groupB = groupedPieces[b] || [];
+
+    // Encontrar el insertionOrder mínimo de cada grupo
+    const minOrderA = Math.min(...groupA.map(piece => piece.insertionOrder ?? Infinity));
+    const minOrderB = Math.min(...groupB.map(piece => piece.insertionOrder ?? Infinity));
+
+    // Si ambos tienen insertionOrder, ordenar por ese valor
+    if (minOrderA !== Infinity && minOrderB !== Infinity) {
+      return minOrderA - minOrderB;
+    }
+
+    // Si solo uno tiene insertionOrder, ese va primero
+    if (minOrderA !== Infinity) return -1;
+    if (minOrderB !== Infinity) return 1;
+
+    // Si ninguno tiene insertionOrder, usar orden alfabético como fallback
+    return a.localeCompare(b);
+  });
 
   const handleClearAll = () => {
     if (confirm('¿Estás seguro que deseas eliminar todas las piezas de fórmulas de puertas? Esta acción no se puede deshacer.')) {

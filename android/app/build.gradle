@@ -8,7 +8,7 @@ android {
         applicationId "com.alcalculadora.app"
         minSdkVersion 23
         targetSdkVersion 35
-        versionCode 270
+        versionCode 313
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

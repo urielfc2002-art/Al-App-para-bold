@@ -100,6 +100,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
   const [newExtraCostName, setNewExtraCostName] = useSyncedState<string>('generalQuoteNewExtraCostName', '');
   const [newExtraCostAmount, setNewExtraCostAmount] = useSyncedState<number>('generalQuoteNewExtraCostAmount', 0);
   const [quoteName, setQuoteName] = useSyncedState<string>('generalQuoteName', '');
+  const [currentQuoteId, setCurrentQuoteId] = useSyncedState<string | null>('generalQuoteCurrentId', null);
   const [showSavedQuotesModal, setShowSavedQuotesModal] = useState(false);
 
   useEffect(() => {
@@ -167,7 +168,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
     }
 
     const quoteData = {
-      id: crypto.randomUUID(),
+      id: currentQuoteId || crypto.randomUUID(),
       name: quoteName,
       date: new Date().toISOString(),
       type: 'general',
@@ -224,10 +225,23 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
     });
 
     const savedQuotes = JSON.parse(localStorage.getItem('savedGeneralQuotes') || '[]');
-    savedQuotes.push(quoteData);
-    localStorage.setItem('savedGeneralQuotes', JSON.stringify(savedQuotes));
 
-    alert('¡Cotización general guardada exitosamente!');
+    if (currentQuoteId) {
+      const quoteIndex = savedQuotes.findIndex((q: any) => q.id === currentQuoteId);
+      if (quoteIndex !== -1) {
+        savedQuotes[quoteIndex] = quoteData;
+        alert('¡Cotización actualizada exitosamente!');
+      } else {
+        savedQuotes.push(quoteData);
+        alert('¡Cotización guardada exitosamente!');
+      }
+    } else {
+      savedQuotes.push(quoteData);
+      setCurrentQuoteId(quoteData.id);
+      alert('¡Cotización guardada exitosamente!');
+    }
+
+    localStorage.setItem('savedGeneralQuotes', JSON.stringify(savedQuotes));
 
     // Limpiar formulario
     setSelectedProfiles([]);
@@ -237,6 +251,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
     setProfitPercentage(0);
     setIvaPercentage(16);
     setQuoteName('');
+    setCurrentQuoteId(null);
   };
 
   const handleLoadGeneralQuote = (quote: any) => {
@@ -256,6 +271,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
     setProfitPercentage(quote.profitPercentage || 0);
     setIvaPercentage(quote.ivaPercentage !== undefined ? quote.ivaPercentage : 0);
     setQuoteName(quote.name || '');
+    setCurrentQuoteId(quote.id || null);
     setNewExtraCostName('');
     setNewExtraCostAmount(0);
 
@@ -272,6 +288,7 @@ export function GeneralQuoteCalculator({ onBack }: GeneralQuoteCalculatorProps) 
       setProfitPercentage(0);
       setIvaPercentage(16);
       setQuoteName('');
+      setCurrentQuoteId(null);
       setNewExtraCostName('');
       setNewExtraCostAmount(0);
     }

@@ -147,7 +147,7 @@ export function SavedGeneralQuotesModal({ onClose, onLoadQuote }: SavedGeneralQu
                 <p className="text-gray-500">No hay cotizaciones generales guardadas</p>
               </div>
             ) : (
-              savedQuotes.map((quote) => (
+              savedQuotes.slice().reverse().map((quote) => (
                 <div
                   key={quote.id}
                   className={`p-4 rounded-lg border transition-colors cursor-pointer ${

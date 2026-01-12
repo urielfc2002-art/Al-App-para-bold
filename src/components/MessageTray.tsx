@@ -14,6 +14,7 @@ import {
   doc,
   Timestamp,
 } from "firebase/firestore";
+import { App as CapacitorAppClass } from "@capacitor/app";
 
 type Message = {
   id: string;
@@ -21,11 +22,28 @@ type Message = {
   body: string;          // Puede contener "@user"
   createdAt: Date;       // Fecha de creación
   isNew: boolean;        // true = punto verde, false = rojo
+  buttons?: Array<{      // 🔹 NUEVO: Botones con enlaces
+    label: string;
+    url: string;
+  }>;
 };
 
 interface Props {
   open: boolean;
   onClose: () => void;
+}
+
+/* Helper: abrir con la app nativa cuando sea posible */
+async function openExternal(url: string) {
+  try {
+    await CapacitorAppClass.openUrl({ url });
+  } catch {
+    try {
+      (window as any).open(url, "_system");
+    } catch {
+      window.open(url, "_blank");
+    }
+  }
 }
 
 /** NUEVO: convierte URLs, emails y teléfonos en <a> clicables sin permitir HTML crudo */
@@ -134,27 +152,75 @@ const MessageTray: React.FC<Props> = ({ open, onClose }) => {
       limit(25)
     );
 
+    // 🆕 Obtener fecha de creación de cuenta del usuario
+    const userCreationDate = u.metadata?.creationTime 
+      ? new Date(u.metadata.creationTime).getTime() 
+      : 0;
+
     const stopMsgs = onSnapshot(q, (snap) => {
       const displayName = u.displayName?.trim();
       const emailName = u.email?.split("@")[0] ?? "usuario";
       const friendly = displayName && displayName.length > 0 ? displayName : emailName;
 
-      const items: Message[] = snap.docs.map((d) => {
+      const items: Message[] = [];
+      
+      snap.docs.forEach((d) => {
         const data = d.data() as any;
         const created = (data.createdAt as Timestamp | undefined)?.toDate?.() ?? new Date();
+        const ms = created.getTime();
+        
+        // 🆕 FILTRO 1: Solo mostrar mensajes posteriores a la fecha de registro del usuario
+        if (userCreationDate > 0 && ms > 0 && ms < userCreationDate) {
+          return; // Saltar este mensaje (es anterior al registro)
+        }
+
+        // 🆕 FILTRO 2: Sistema de destinatarios
+        const destinatarios = data?.destinatarios;
+        let isForThisUser = false;
+
+        if (!destinatarios) {
+          // Si no existe el campo, es para todos (retrocompatibilidad)
+          isForThisUser = true;
+        } else if (Array.isArray(destinatarios)) {
+          // Si es un array, verificar si contiene "Todos" o el UID del usuario
+          if (destinatarios.includes("Todos") || destinatarios.includes(u.uid)) {
+            isForThisUser = true;
+          }
+        } else if (typeof destinatarios === "string") {
+          // Retrocompatibilidad: si es string, verificar si dice "Todos" o contiene el UID
+          if (destinatarios === "Todos" || destinatarios.includes(u.uid)) {
+            isForThisUser = true;
+          }
+        }
+
+        // Si el mensaje no es para este usuario, no lo agregamos
+        if (!isForThisUser) {
+          return;
+        }
+
+        // Mensaje pasa todos los filtros, procesarlo
         const body: string = String(data.body ?? "")
           .replaceAll("@@user", "@user")
           .replaceAll("@user", friendly);
 
-        const isNew = lastSeen ? created.getTime() > lastSeen : true;
+        const isNew = lastSeen ? ms > lastSeen : true;
 
-        return {
+        // 🔹 Incluir botones si existen en el documento
+        const buttons = data?.buttons && Array.isArray(data.buttons)
+          ? data.buttons.map((btn: any) => ({
+              label: String(btn?.label || ""),
+              url: String(btn?.url || "")
+            })).filter((btn: any) => btn.label && btn.url)
+          : undefined;
+
+        items.push({
           id: d.id,
           title: "AL Calculadora",
           body,
           createdAt: created,
           isNew,
-        };
+          buttons,
+        });
       });
 
       setMessages(items);
@@ -390,6 +456,48 @@ const MessageTray: React.FC<Props> = ({ open, onClose }) => {
                         >
                           {isOpen ? "ver menos" : "ver más…"}
                         </button>
+                      )}
+
+                      {/* 🔹 NUEVO: Botones con enlaces (si existen) */}
+                      {m.buttons && m.buttons.length > 0 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                            marginTop: 12,
+                          }}
+                        >
+                          {m.buttons.map((button, index) => (
+                            <button
+                              key={index}
+                              onClick={() => openExternal(button.url)}
+                              style={{
+                                background: "#1976d2",
+                                color: "#ffffff",
+                                border: "none",
+                                borderRadius: 8,
+                                padding: "10px 16px",
+                                fontSize: 14,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                textAlign: "center",
+                                transition: "background 0.2s ease",
+                              }}
+                              onMouseDown={(e) => {
+                                e.currentTarget.style.background = "#1565c0";
+                              }}
+                              onMouseUp={(e) => {
+                                e.currentTarget.style.background = "#1976d2";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "#1976d2";
+                              }}
+                            >
+                              {button.label}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>

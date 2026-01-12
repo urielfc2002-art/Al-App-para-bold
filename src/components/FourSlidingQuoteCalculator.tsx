@@ -1034,7 +1034,7 @@ export function FourSlidingQuoteCalculator({ onBack, onBackToNotes, initialWidth
                       <HelpCircle size={18} />
                     </button>
                     {showGlassHelpTooltip && (
-                      <div className="absolute left-0 top-8 z-50 w-72 bg-blue-600 text-white p-4 rounded-lg shadow-xl">
+                      <div className="left-1/2 -translate-x-1/2 top-8 z-50 w-64 max-w-[calc(100vw-2rem)] bg-blue-600 text-white p-4 rounded-lg shadow-xl">
                         <button
                           onClick={() => setShowGlassHelpTooltip(false)}
                           className="absolute top-2 right-2 text-white hover:text-gray-200"

@@ -92,22 +92,22 @@ export function CuttingWorkflow({ onBack, measurements, zocloSelection }: Cuttin
       totalPieces: measurements.ventilaFijaCercochapa.pieces,
     },
 
-    // 5. Ventila Fija - Traslape (1 piece)
-    {
-      title: "VENTILA FIJA - TRASLAPE",
-      description: "Cortar el traslape de la ventila fija",
-      measure: measurements.ventilaFijaTraslape.measure,
-      currentPiece: 1,
-      totalPieces: measurements.ventilaFijaTraslape.pieces,
-    },
-
-    // 6. Ventila Corrediza - Cercochapa (1 piece)
+    // 5. Ventila Corrediza - Cercochapa (1 piece)
     {
       title: "VENTILA CORREDIZA - CERCOCHAPA",
       description: "Cortar el cercochapa de la ventila corrediza",
       measure: measurements.ventilaCorrCercochapa.measure,
       currentPiece: 1,
       totalPieces: measurements.ventilaCorrCercochapa.pieces,
+    },
+
+    // 6. Ventila Fija - Traslape (1 piece)
+    {
+      title: "VENTILA FIJA - TRASLAPE",
+      description: "Cortar el traslape de la ventila fija",
+      measure: measurements.ventilaFijaTraslape.measure,
+      currentPiece: 1,
+      totalPieces: measurements.ventilaFijaTraslape.pieces,
     },
 
     // 7. Ventila Corrediza - Traslape (1 piece)

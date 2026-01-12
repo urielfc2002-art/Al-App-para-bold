@@ -30,25 +30,45 @@ export function FormulaCuttingWorkflow({
 }: FormulaCuttingWorkflowProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
-  // Crear lista plana de pasos ordenados de mayor a menor medida
+  // Crear lista plana de pasos agrupados por tipo de perfil y ordenados de mayor a menor
   const createWorkflowSteps = (): WorkflowStep[] => {
     const steps: WorkflowStep[] = [];
     let stepIndex = 0;
 
-    // Ordenar resultados de mayor a menor medida
-    const sortedResults = [...results].sort((a, b) => b.result - a.result);
+    // Agrupar resultados por nombre de perfil (normalizado a minúsculas)
+    const profileGroups = new Map<string, FormulaResult[]>();
+    const profileOrder: string[] = [];
 
-    sortedResults.forEach(result => {
-      // Crear un paso para cada pieza individual
-      for (let i = 0; i < result.pieces; i++) {
-        steps.push({
-          profileName: result.profileName,
-          measure: result.result,
-          currentPiece: i + 1,
-          totalPieces: result.pieces,
-          stepIndex: stepIndex++
-        });
+    results.forEach(result => {
+      const normalizedName = result.profileName.toLowerCase().trim();
+
+      if (!profileGroups.has(normalizedName)) {
+        profileGroups.set(normalizedName, []);
+        profileOrder.push(normalizedName);
       }
+
+      profileGroups.get(normalizedName)!.push(result);
+    });
+
+    // Para cada grupo de perfiles, ordenar de mayor a menor y generar pasos
+    profileOrder.forEach(profileKey => {
+      const group = profileGroups.get(profileKey)!;
+
+      // Ordenar el grupo de mayor a menor medida
+      const sortedGroup = [...group].sort((a, b) => b.result - a.result);
+
+      // Crear pasos para cada resultado en el grupo ordenado
+      sortedGroup.forEach(result => {
+        for (let i = 0; i < result.pieces; i++) {
+          steps.push({
+            profileName: result.profileName,
+            measure: result.result,
+            currentPiece: i + 1,
+            totalPieces: result.pieces,
+            stepIndex: stepIndex++
+          });
+        }
+      });
     });
 
     return steps;
@@ -136,6 +156,7 @@ export function FormulaCuttingWorkflow({
                 </span>
               </div>
             </div>
+            <h2 className="text-3xl font-bold text-[#003366] mb-2">{currentStep.profileName}</h2>
             <p className="text-gray-600 text-lg">
               Pieza {currentStep.currentPiece} de {currentStep.totalPieces}
             </p>

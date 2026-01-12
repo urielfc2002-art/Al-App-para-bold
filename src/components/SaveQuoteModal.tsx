@@ -4,10 +4,11 @@ import { X, Save } from 'lucide-react';
 interface SaveQuoteModalProps {
   onClose: () => void;
   onSave: (name: string) => void;
+  initialName?: string;
 }
 
-export function SaveQuoteModal({ onClose, onSave }: SaveQuoteModalProps) {
-  const [quoteName, setQuoteName] = useState('');
+export function SaveQuoteModal({ onClose, onSave, initialName }: SaveQuoteModalProps) {
+  const [quoteName, setQuoteName] = useState(initialName || '');
   const [error, setError] = useState('');
 
   const handleSave = () => {
@@ -30,7 +31,9 @@ export function SaveQuoteModal({ onClose, onSave }: SaveQuoteModalProps) {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-[#003366]">Guardar Cotización</h2>
+            <h2 className="text-2xl font-bold text-[#003366]">
+              {initialName ? 'Actualizar Cotización' : 'Guardar Cotización'}
+            </h2>
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -73,7 +76,7 @@ export function SaveQuoteModal({ onClose, onSave }: SaveQuoteModalProps) {
                 className="px-6 py-2 bg-[#003366] text-white rounded-md hover:bg-blue-800 transition-colors flex items-center gap-2"
               >
                 <Save size={18} />
-                Guardar
+                {initialName ? 'Actualizar' : 'Guardar'}
               </button>
             </div>
           </div>

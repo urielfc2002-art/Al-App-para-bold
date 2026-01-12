@@ -150,7 +150,7 @@ export function FourSlidingCalculator({ onBack, onBackToNotes, initialWidth, ini
   }, [initialWidth, initialHeight, showNotesButton]);
 
   const results = calculateMeasurements();
-  const glassResults = calculateGlassMeasurements();
+  const glassMeasurements = calculateGlassMeasurements();
 
   if (showCuttingWorkflow && results) {
     return (
@@ -491,7 +491,7 @@ export function FourSlidingCalculator({ onBack, onBackToNotes, initialWidth, ini
                     <HelpCircle size={20} />
                   </button>
                   {showGlassHelpTooltip && (
-                    <div className="absolute left-0 top-8 z-50 w-72 bg-blue-600 text-white p-4 rounded-lg shadow-xl">
+                    <div className="absolute right-0 top-8 z-50 w-64 max-w-[calc(100vw-2rem)] bg-blue-600 text-white p-4 rounded-lg shadow-xl">
                       <button
                         onClick={() => setShowGlassHelpTooltip(false)}
                         className="absolute top-2 right-2 text-white hover:text-gray-200"
@@ -532,13 +532,13 @@ export function FourSlidingCalculator({ onBack, onBackToNotes, initialWidth, ini
               </div>
             </div>
 
-            {glassResults ? (
+            {glassMeasurements ? (
               <>
                 <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg border-2 border-blue-500">
                   <h3 className="text-lg font-bold text-blue-800 mb-3">VENTILA CORREDIZA</h3>
                   <div className="bg-white p-3 rounded border border-blue-300">
                     <p className="text-blue-900 font-semibold text-center">
-                      4 pz de {glassResults.width} cm x {glassResults.height} cm
+                      4 pz de {glassMeasurements.width} cm x {glassMeasurements.height} cm
                     </p>
                   </div>
                 </div>

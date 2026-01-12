@@ -566,7 +566,10 @@ const QuoteSheetHome: React.FC<QuoteSheetHomeProps> = ({
               <div className="qsh-sheet-table-body">
                 <div className="qsh-sheet-pieces-list">
                   {pagePieces.map((p, idx) => (
-                    <div key={idx}>{p}</div>
+                    <div key={idx}>
+                      <span className="qsh-piece-bullet">* </span>
+                      {p}
+                    </div>
                   ))}
                 </div>
 
@@ -1201,73 +1204,29 @@ const QuoteSheetHome: React.FC<QuoteSheetHomeProps> = ({
                   Piezas (agrega una por línea)
                 </label>
                 {quoteData.pieces.map((piece, index) => (
-                  <div className="qsh-piece-row" key={index}>
-                    <div className="qsh-piece-input-wrapper">
-                      <input
-                        type="text"
-                        value={piece}
-                        onChange={(e) =>
-                          handlePieceChange(index, e.target.value)
-                        }
-                        className="qsh-input qsh-piece-input"
-                        placeholder={`Pieza ${index + 1}`}
-                        style={{ 
-                          paddingRight: quoteData.pieces.length > 1 ? '60px' : '20px' 
-                        }}
-                      />
-                      {/* Tope invisible para evitar traslape */}
-                      <div 
-                        className="qsh-piece-spacer" 
-                        style={{ 
-                          position: 'absolute',
-                          right: quoteData.pieces.length > 1 ? '40px' : '10px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: '20px',
-                          height: '20px',
-                          pointerEvents: 'none'
-                        }}
-                      />
-                      {/* Contador de caracteres - posicionado debajo del input */}
-                      <div 
-                        className="qsh-char-counter" 
-                        style={{
-                          position: 'absolute',
-                          right: quoteData.pieces.length > 1 ? '10px' : '-30px',
-                          bottom: '-20px',
-                          fontSize: '12px'
-                        }}
-                      >
-                        <span className={
-                          piece.length > 49 
-                            ? "qsh-char-counter-text qsh-char-counter-text--exceeded" 
-                            : "qsh-char-counter-text"
-                        }>
-                          {piece.length}/49
-                        </span>
-                      </div>
-                    </div>
-                    {quoteData.pieces.length > 1 && (
-                      <button
-                        type="button"
-                        className="qsh-piece-remove-btn"
-                        onClick={() => handleRemovePiece(index)}
-                        aria-label="Eliminar pieza"
-                        style={{ 
-                          position: 'absolute',
-                          right: '10px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          marginLeft: '0',
-                          width: '30px',
-                          height: '30px'
-                        }}
-                      >
-                        X
-                      </button>
-                    )}
-                  </div>
-                ))}
+  <div className="qsh-piece-row qsh-piece-row--with-trash" key={index}>
+    <input
+      type="text"
+      value={piece}
+      onChange={(e) =>
+        handlePieceChange(index, e.target.value)
+      }
+      className="qsh-input qsh-piece-input qsh-piece-input--with-trash"
+      placeholder={`Pieza ${index + 1}`}
+    />
+
+    {quoteData.pieces.length > 1 && (
+      <button
+        type="button"
+        className="qsh-piece-trash-btn"
+        onClick={() => handleRemovePiece(index)}
+        aria-label="Eliminar pieza"
+      >
+        🗑️
+      </button>
+    )}
+  </div>
+))}
                 <button
                   type="button"
                   className="qsh-btn-secondary"
@@ -1312,30 +1271,44 @@ const QuoteSheetHome: React.FC<QuoteSheetHomeProps> = ({
         </div>
       )}
 
-      {previewQuote && (
-        <div className="qsh-preview-overlay">
-          <div className="qsh-preview">
-            <div className="qsh-preview-topbar">
-              <button
-                className="qsh-topbar-btn"
-                onClick={() => setPreviewQuote(null)}
-              >
-                <ArrowLeft size={20} />
-              </button>
+      {previewQuote && (() => {
+        // Calcular número de páginas para aplicar clase condicional
+        const pieces = previewQuote.pieces
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+        const totalPages = Math.max(
+          1,
+          Math.ceil(pieces.length / PIECES_PER_PAGE)
+        );
+        const previewContentClass = totalPages > 1 
+          ? "qsh-preview-content qsh-multiple-pages" 
+          : "qsh-preview-content qsh-single-page";
+
+        return (
+          <div className="qsh-preview-overlay">
+            <div className="qsh-preview">
+              <div className="qsh-preview-topbar">
+                <button
+                  className="qsh-topbar-btn"
+                  onClick={() => setPreviewQuote(null)}
+                >
+                  <ArrowLeft size={20} />
+                </button>
+              </div>
+
+              <div className={previewContentClass}>
+                <h1 className="qsh-preview-heading">
+                  Vista previa de la cotización
+                </h1>
+
+                {renderQuotePages(previewQuote)}
+              </div>
+
+              <div className="qsh-preview-bottombar" />
             </div>
-
-            <div className="qsh-preview-content">
-              <h1 className="qsh-preview-heading">
-                Vista previa de la cotización
-              </h1>
-
-              {renderQuotePages(previewQuote)}
-            </div>
-
-            <div className="qsh-preview-bottombar" />
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
