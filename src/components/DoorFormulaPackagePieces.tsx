@@ -93,10 +93,9 @@ export function DoorFormulaPackagePieces({ onBack }: DoorFormulaPackagePiecesPro
   };
 
   const handleLoadPackage = (packageData: any) => {
-    localStorage.setItem('doorFormulaGeneratorPackagePieces', JSON.stringify(packageData.pieces));
+    setPieces(packageData.pieces);
     setShowLoadModal(false);
     alert(`Paquete "${packageData.name}" cargado exitosamente!`);
-    window.location.reload();
   };
 
   const handleStartWorking = () => {

@@ -16,7 +16,9 @@ interface PackagePiecesProps {
 }
 
 export function PackagePieces({ onBack }: PackagePiecesProps) {
-  const pieces = JSON.parse(localStorage.getItem('packagePieces') || '[]') as ProfilePiece[];
+  const [pieces, setPieces] = useState<ProfilePiece[]>(() =>
+    JSON.parse(localStorage.getItem('packagePieces') || '[]')
+  );
   const [currentStep, setCurrentStep] = useState(0);
   const [showWorkflow, setShowWorkflow] = useState(false);
   const [currentPieceIndex, setCurrentPieceIndex] = useState(0);
@@ -66,8 +68,10 @@ export function PackagePieces({ onBack }: PackagePiecesProps) {
   const profileOrder = ['JAMBA', 'RIEL', 'CERCO', 'TRASLAPE', 'ZOCLO', 'RIEL ADICIONAL'];
 
   const handleClearAll = () => {
-    localStorage.setItem('packagePieces', '[]');
-    window.location.reload();
+    if (confirm('¿Estás seguro que deseas eliminar todas las piezas? Esta acción no se puede deshacer.')) {
+      localStorage.setItem('packagePieces', '[]');
+      setPieces([]);
+    }
   };
 
   const handleSavePackage = (name: string) => {
@@ -90,8 +94,9 @@ export function PackagePieces({ onBack }: PackagePiecesProps) {
 
   const handleLoadPackage = (packageData: any) => {
     localStorage.setItem('packagePieces', JSON.stringify(packageData.pieces));
+    setPieces(packageData.pieces);
     setShowLoadModal(false);
-    window.location.reload();
+    alert(`Paquete "${packageData.name}" cargado exitosamente!`);
   };
 
   const handleStartWorking = () => {
